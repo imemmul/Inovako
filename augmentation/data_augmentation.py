@@ -48,6 +48,7 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
         plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         plt.axis('off')
         plt.show()
+        print(f"img shape {img.shape}")
     else:
         for line in lines:
             parts = line.split()
@@ -67,6 +68,7 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
             polys_oi = PolygonsOnImage(poly, shape=img.shape)
             
             img = polys_oi.draw_on_image(img, alpha_points=0, alpha_lines=1, alpha_face=0.5, color=clr)
+        print(f"img shape {img.shape}")
         plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         plt.axis('off')
         plt.show()
@@ -106,7 +108,7 @@ def augment_data(dir, target_dir):
                                 for coord in lines]
 
             # Augment image and polygons 400 times for each image
-            for i in range(300):
+            for i in range(40):
                 img_aug, polygons_aug = aug(image=img, polygons=PolygonsOnImage(polygons, shape=img.shape))
                 # polygons_aug = polygons_aug.clip_out_of_image()
 
@@ -128,12 +130,12 @@ def augment_data(dir, target_dir):
                 # print(f"polygons after for {filename} {polygons_aug}")
                 print(f"images/aug_{i}_")
                 # Save the augmented image
-                cv2.imwrite(os.path.join(target_dir, f"images/aug_{i}_" + filename), img_aug)
+                cv2.imwrite(os.path.join(target_dir, f"images/" + f"{filename[:-4]}_aug_{i}.jpg"), img_aug)
                 print(f"labels/aug_{i}_")
                 # Convert PolygonsOnImage object to polygons and save
                 polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0]))+' '+str(float(coord[1])) for coord in polygons_aug.exterior])}"
                                     for polygons_aug, cls in zip(polygons_aug.polygons, valid_labels)]
-                with open(os.path.join(target_dir, f"labels/aug_{i}_" + filename.rsplit(".", 1)[0] + ".txt"), 'w') as file:
+                with open(os.path.join(target_dir, f"labels/" + filename.rsplit(".", 1)[0] + f"_aug_{i}.txt"), 'w') as file:
                     file.write('\n'.join(polygons_aug_txt))
 
 
