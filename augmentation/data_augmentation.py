@@ -7,8 +7,9 @@ import imgaug as ia
 import cv2
 import os
 from imgaug.augmentables.polys import Polygon, PolygonsOnImage
+from imgaug.parameters import Uniform
 
-OUTPUT_DIR = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset/"
+OUTPUT_DIR = "/home/emir/Desktop/dev/Inovako/projet_secret/augmented_dataset/"
 INPUT_DIR = "../dataset/"
 
 def draw_annotations(img_dir, annot_dir, aug:bool):
@@ -79,12 +80,15 @@ def augment_data(dir, target_dir):
         iaa.Affine(rotate=(-10, 10)),
         iaa.Affine(translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)}),
         iaa.Affine(scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}),
+        iaa.Affine(scale=Uniform(0.8, 1.2)),
         iaa.Affine(shear=(-8,8)),
         iaa.Multiply((0.8, 1.2)),
         iaa.GaussianBlur(sigma=(0.0, 0.01)),
         iaa.AdditiveGaussianNoise(scale=(0, 0.005*255)),
         iaa.ElasticTransformation(alpha=10, sigma=5),
         iaa.Cutout(nb_iterations=(1, 3), size=0.01, squared=False),
+        iaa.AddToHueAndSaturation((-50, 50), per_channel=True),
+        iaa.ChannelShuffle(1.0)
     ])
 
     # Specify the paths to your images and masks
@@ -92,6 +96,7 @@ def augment_data(dir, target_dir):
     path_to_polygons = f"{dir}labels/"
     # Process each image
     for filename in os.listdir(path_to_images):
+    # filename = "v2-2-2-_bmp.rf.a6319e97b2af489206fd056d9f7f6c15.jpg"
         if filename.endswith(".jpg") or filename.endswith(".png"):
             # Read image
             img = cv2.imread(os.path.join(path_to_images, filename))
@@ -100,13 +105,26 @@ def augment_data(dir, target_dir):
             with open(os.path.join(path_to_polygons, filename.rsplit(".", 1)[0] + ".txt"), 'r') as file:
                 lines = file.readlines()
                 polygons = [Polygon([(float(coord.split()[i])*img_height, float(coord.split()[i+1])*img_width) 
-                                        for i in range(1, len(coord.split()), 2)]) 
+                                        for i in range(1, len(coord.split()), 2)], label=coord.split()[0]) 
                                 for coord in lines]
-                classes = [line.split()[0] for line in lines]
 
             # Augment image and polygons 400 times for each image
-            for i in range(400):
+            for i in range(300):
                 img_aug, polygons_aug = aug(image=img, polygons=PolygonsOnImage(polygons, shape=img.shape))
+                # polygons_aug = polygons_aug.clip_out_of_image()
+
+                # Filter out polygons that are out-of-bound
+                valid_polygons = []
+                valid_labels = []
+                for polygon in polygons_aug.polygons:
+                    coords = polygon.exterior
+                    # print(f"what is polygons: {coords}")
+                    label = polygon.label
+                    if all(0 <= point[0] < img.shape[1] and 0 <= point[1] < img.shape[0] for point in coords):
+                        # print(f"what is label {label}")
+                        valid_polygons.append(polygon)
+                        valid_labels.append(label)
+                polygons_aug.polygons = valid_polygons
 
                 # Clip the coordinates of the augmented polygons
                 # print(f"polygons before for {filename} {polygons}")
@@ -117,7 +135,7 @@ def augment_data(dir, target_dir):
                 print(f"labels/aug_{i}_")
                 # Convert PolygonsOnImage object to polygons and save
                 polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0]))+' '+str(float(coord[1])) for coord in polygons_aug.exterior])}"
-                                    for polygons_aug, cls in zip(polygons_aug.polygons, classes)]
+                                    for polygons_aug, cls in zip(polygons_aug.polygons, valid_labels)]
                 with open(os.path.join(target_dir, f"labels/aug_{i}_" + filename.rsplit(".", 1)[0] + ".txt"), 'w') as file:
                     file.write('\n'.join(polygons_aug_txt))
 
@@ -125,5 +143,6 @@ def augment_data(dir, target_dir):
 
 if __name__ == "__main__":
     train_dir = f"{INPUT_DIR}train/"
-    # valid_dir = f"{INPUT_DIR}valid/"
+    valid_dir = f"{INPUT_DIR}valid/"
     augment_data(train_dir, target_dir=OUTPUT_DIR+"train/")
+    augment_data(valid_dir, target_dir=OUTPUT_DIR+"valid/")
