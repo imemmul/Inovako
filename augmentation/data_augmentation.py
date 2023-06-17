@@ -77,19 +77,16 @@ def augment_data(dir, target_dir):
     aug = iaa.Sequential([
         iaa.Fliplr(0.5),
         iaa.Flipud(0.2),
-        iaa.Affine(rotate=(-10, 10)),
-        iaa.Affine(translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)}),
-        iaa.Affine(scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}),
-        iaa.Affine(scale=Uniform(0.8, 1.2)),
-        iaa.Affine(shear=(-8,8)),
+        iaa.Affine(scale=Uniform(0.5, 1.5)),
         iaa.Multiply((0.8, 1.2)),
-        iaa.GaussianBlur(sigma=(0.0, 0.01)),
-        iaa.AdditiveGaussianNoise(scale=(0, 0.005*255)),
-        iaa.ElasticTransformation(alpha=10, sigma=5),
-        iaa.Cutout(nb_iterations=(1, 3), size=0.01, squared=False),
+        iaa.Sometimes(0.5,
+            iaa.GaussianBlur(sigma=(0, 0.1))
+        ),  # Gaussian blur for 10% of the images
+        iaa.AdditiveGaussianNoise(scale=(0, 0.05*255)),
         iaa.AddToHueAndSaturation((-50, 50), per_channel=True),
-        iaa.ChannelShuffle(1.0)
-    ])
+        iaa.ChannelShuffle(1.0),
+        iaa.Affine(rotate=(-25, 25))
+    ], random_order=True)
 
     # Specify the paths to your images and masks
     path_to_images = f"{dir}images/"
