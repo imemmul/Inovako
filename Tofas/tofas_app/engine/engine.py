@@ -13,7 +13,7 @@ from multiprocessing import Queue, Process, set_start_method
 import os
 
 # TODO write a no camera handler
-
+# TODO handle the issue about set_start_method('spawn')
 DEFAULT_EXPOSURE = 10000
 
 
@@ -24,6 +24,7 @@ def run_inference(q:Queue, args, running):
         image, cam_id, exp_time = q.get()
         bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         draw = bgr.copy()
+        print(f"what is shape: {draw.shape}")
         bgr, ratio, dwdh = letterbox(bgr, (W, H))
         dw, dh = int(dwdh[0]), int(dwdh[1])
         rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
@@ -81,7 +82,7 @@ def run_devices(cam_array, nums_cams, args):
             cam.ExposureTime.SetValue(int(exp_time))  # Set new exposure time
             # print(f"cam exposureTime: {cam.ExposureTime}")
         with cam_array.RetrieveResult(1000) as res:
-            print(f"image taken")
+            # print(f"image taken")
             if res.GrabSucceeded():
                 print(f"what is image {res.Array.shape}")
                 if part_detection(res.Array, args.gray_thres):
@@ -96,8 +97,8 @@ def run_devices(cam_array, nums_cams, args):
                     print(f"No Part detected, checking in every {args.check_interval} seconds")
                     time.sleep(args.check_interval)
     cam_array.StopGrabbing()
+    p.terminate()
     q.put(None)  # signal the inference process to end
-    p.join()
 
 def load_engine(args):
     device = torch.device(args.device)
@@ -123,6 +124,8 @@ def load_devices(args):
         cam.SetCameraContext(idx)
         cam.ExposureTime.SetValue(DEFAULT_EXPOSURE)
         cam.PixelFormat.SetValue('Mono8')
+        cam.Width.SetValue(1280)
+        cam.Height.SetValue(720)
     return cam_array, num_cams
 
 def parse_args():
@@ -143,9 +146,9 @@ def parse_args():
 def stop_engine():
     global running
     running.clear()
+    print(f"stopped the engine")
 
 def run_engine(args):
-    set_start_method('spawn')
     global running
     running = multiprocessing.Event()
     running.set()
@@ -161,6 +164,7 @@ def run_test(args):
     run_engine(args)
 
 if __name__ == "__main__":
+    set_start_method('spawn') # this is temp
     args = parse_args()
     if args.test:
         run_test(args)

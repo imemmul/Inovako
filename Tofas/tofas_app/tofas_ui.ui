@@ -45,29 +45,11 @@ font: 32px;</string>
      <string>Baslat</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="pushButton_durdur">
-    <property name="geometry">
-     <rect>
-      <x>560</x>
-      <y>120</y>
-      <width>221</width>
-      <height>101</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">background-color: rgb(142, 236, 186);
-color: black;
-font: 32px;</string>
-    </property>
-    <property name="text">
-     <string>Durdur</string>
-    </property>
-   </widget>
    <widget class="QLabel" name="label_sure">
     <property name="geometry">
      <rect>
-      <x>560</x>
-      <y>340</y>
+      <x>570</x>
+      <y>120</y>
       <width>201</width>
       <height>21</height>
      </rect>
@@ -158,6 +140,62 @@ font: 32px;</string>
       <string>Seç</string>
      </property>
     </widget>
+   </widget>
+   <widget class="QSpinBox" name="exposure_time">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>190</y>
+      <width>91</width>
+      <height>23</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="exposure_time_2">
+    <property name="geometry">
+     <rect>
+      <x>680</x>
+      <y>190</y>
+      <width>91</width>
+      <height>23</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>620</x>
+      <y>160</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Exposure Time</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_2">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>230</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Check Frequency</string>
+    </property>
+   </widget>
+   <widget class="QSpinBox" name="check_frequency">
+    <property name="geometry">
+     <rect>
+      <x>680</x>
+      <y>230</y>
+      <width>91</width>
+      <height>23</height>
+     </rect>
+    </property>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
