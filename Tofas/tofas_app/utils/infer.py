@@ -7,7 +7,7 @@ import torch
 import argparse
 from pathlib import Path
 from models import TRTModule
-from config import CLASSES, COLORS, MASK_COLORS
+from Inovako.Tofas.tofas_app.engine.config import CLASSES, COLORS, MASK_COLORS
 from models.torch_utils import seg_postprocess
 from models.utils import blob, letterbox
 import threading

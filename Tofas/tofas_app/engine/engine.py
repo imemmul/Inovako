@@ -1,28 +1,25 @@
 import pypylon.pylon as py
 import time
-import datetime
 import cv2
 import numpy as np
 import torch
 import argparse
-from pathlib import Path
-from models import TRTModule
-from config import CLASSES, COLORS, MASK_COLORS
-from models.torch_utils import seg_postprocess
-from models.utils import blob, letterbox
-import threading
+from .models import TRTModule
+from .config import CLASSES, COLORS, MASK_COLORS
+from .models.torch_utils import seg_postprocess
+from .models.utils import blob, letterbox
+import multiprocessing
 from multiprocessing import Queue, Process, set_start_method
 import os
 
+# TODO write a no camera handler
 
-SAVE_PATH  = "./output/"
 DEFAULT_EXPOSURE = 10000
-set_start_method('spawn')
 
 
-def run_inference(q:Queue, args):
+def run_inference(q:Queue, args, running):
     engine, device, H, W  = load_engine(args)
-    count = len(os.listdir(SAVE_PATH))
+    count = len(os.listdir(args.out_dir))
     while running.is_set():
         image, cam_id, exp_time = q.get()
         bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -63,7 +60,7 @@ def run_inference(q:Queue, args):
                 cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
                 cv2.putText(draw, f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, [225, 255, 255], thickness=2)
             count += 1
-            cv2.imwrite(filename=f"{SAVE_PATH}output_{cam_id}_{count}_{exp_time}.jpg", img=draw)
+            cv2.imwrite(filename=f"{args.out_dir}output_{cam_id}_{count}_{exp_time}.jpg", img=draw)
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
@@ -72,7 +69,7 @@ def part_detection(img, threshold):
 
 def run_devices(cam_array, nums_cams, args):
     q = Queue()
-    p = Process(target=run_inference, args=(q, args))
+    p = Process(target=run_inference, args=(q, args, running))
     p.start()
     capture_amount = 0
     exp_time = 0
@@ -96,7 +93,7 @@ def run_devices(cam_array, nums_cams, args):
                     capture_amount += 1
                     time.sleep(args.interval)
                 else:
-                    print(f"No Part detected, checking in every {args.check_interval}")
+                    print(f"No Part detected, checking in every {args.check_interval} seconds")
                     time.sleep(args.check_interval)
     cam_array.StopGrabbing()
     q.put(None)  # signal the inference process to end
@@ -105,7 +102,7 @@ def run_devices(cam_array, nums_cams, args):
 def load_engine(args):
     device = torch.device(args.device)
     # print(f"what is device {args.engine}")
-    Engine = TRTModule("./tofas_model.engine", device)
+    Engine = TRTModule(args.engine, device)
     H, W = Engine.inp_info[0].shape[-2:]
     Engine.set_desired(['outputs', 'proto'])
     print(f"engine is loaded")
@@ -130,16 +127,16 @@ def load_devices(args):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default='./tofas_model.engine')
-    parser.add_argument('--show', action='store_true')
-    parser.add_argument('--out-dir', type=str, default='./output')
-    parser.add_argument('--conf-thres', type=float, default=0.25)
-    parser.add_argument('--iou-thres', type=float, default=0.65)
+    parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
+    parser.add_argument('--out-dir', type=str, default='../output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=35)
     parser.add_argument('--exposure-time', type=list, default=[10000, 50000])
+    parser.add_argument('--conf-thres', type=float, default=0.25)
+    parser.add_argument('--iou-thres', type=float, default=0.65)
     parser.add_argument('--interval', type=int, default=1)
     parser.add_argument('--check-interval', type=int, default=5)
+    parser.add_argument('--test', action="store_true")
     args = parser.parse_args()
     return args
 
@@ -150,8 +147,22 @@ def stop_engine():
 def run_engine(args):
     set_start_method('spawn')
     global running
-    running = threading.Event()
+    running = multiprocessing.Event()
     running.set()
     cam_array, num_cams = load_devices(args)
     print(f"Devices are loaded, running")
     run_devices(cam_array=cam_array, nums_cams=num_cams, args=args)
+
+def run_test(args):
+    if len(os.listdir(args.out_dir)) > 0:
+        for out in os.listdir(args.out_dir):
+            os.remove(f"{args.out_dir}{out}")
+        print(f"Deleted all files in out dir")
+    run_engine(args)
+
+if __name__ == "__main__":
+    args = parse_args()
+    if args.test:
+        run_test(args)
+    else:
+        run_engine(args)

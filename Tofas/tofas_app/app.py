@@ -1,156 +1,96 @@
-from PyQt5.QtWidgets import QMainWindow, QApplication, QPushButton, QLabel, QFileDialog, QWidget, QLineEdit, QComboBox, QTableWidget, QDialog, QTableWidgetItem
-from PyQt5 import uic
-from PyQt5 import QtCore, QtWidgets, QtGui, QtTest
-from PyQt5.QtGui import QPixmap
-from PyQt5.QtCore import *
-import sys
-from PIL.ImageQt import ImageQt as QtImage
-from PIL import Image
 import os
-import cv2
-import engine
-import time
+from PyQt6 import QtWidgets, uic, QtGui, QtCore
+from PyQt6.QtCore import QDir, QThread
+from engine import engine
 import argparse
-
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default='./tofas_model.engine')
-    parser.add_argument('--show', action='store_true')
-    parser.add_argument('--out-dir', type=str, default='./output')
-    parser.add_argument('--conf-thres', type=float, default=0.25)
-    parser.add_argument('--iou-thres', type=float, default=0.65)
+    parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
+    parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=35)
     parser.add_argument('--exposure-time', type=list, default=[10000, 50000])
+    parser.add_argument('--conf-thres', type=float, default=0.25)
+    parser.add_argument('--iou-thres', type=float, default=0.65)
     parser.add_argument('--interval', type=int, default=1)
     parser.add_argument('--check-interval', type=int, default=5)
+    parser.add_argument('--test', action="store_true")
     args = parser.parse_args()
     return args
 
-class Run_Thread(QThread):
-    
+class EngineThread(QThread):
     def run(self):
-        engine.run_engine(parse_args())
+        engine.run_test(parse_args())
 
-class UI(QMainWindow):
+class ImageViewer(QtWidgets.QMainWindow):
     def __init__(self):
-        super(UI, self).__init__()
+        super().__init__()
 
-        # Load the ui file
-        uic.loadUi("tofas_ui.ui", self)
+        # Load the UI file
+        uic.loadUi('tofas_ui.ui', self)
 
-        # Register
+        # Initialize attributes
+        self.images = []
+        self.index = 0
 
-        # Label
-        self.label_image = self.findChild(QLabel, "label_image")
-        self.label_time = self.findChild(QLabel, "label_sure")
+        # Find widgets
+        self.imageLabel = self.findChild(QtWidgets.QLabel, 'label_image')
+        self.backButton = self.findChild(QtWidgets.QPushButton, 'pushButton_geri')
+        self.forwardButton = self.findChild(QtWidgets.QPushButton, 'pushButton_ileri')
+        self.folderButton = self.findChild(QtWidgets.QPushButton, 'pushButton_sec')
+        self.buttonStart = self.findChild(QtWidgets.QPushButton, "pushButton_baslat")
+        self.buttonStop = self.findChild(QtWidgets.QPushButton, "pushButton_durdur")
 
-        #Signal slot
-
-        # Button Register
-        self.button_Baslat = self.findChild(QPushButton, "pushButton_baslat")
-        self.button_Durdur = self.findChild(QPushButton, "pushButton_durdur")
-        self.button_Geri = self.findChild(QPushButton, "pushButton_geri")
-        self.button_ileri = self.findChild(QPushButton, "pushButton_ileri")
-        self.button_sec = self.findChild(QPushButton, "pushButton_sec")
-
-        self.Widget_Navigate = self.findChild(QWidget, "widget")
-        # Widget Register
-        #self.WidgetPredict = self.findChild(QWidget, "widget_Predict")
-
-        # Button Register
-        #self.button_Enter = self.findChild(QPushButton, "pushButton_Enter")
-
-        # LineEdit Register
-        #self.lineEdit_UserName = self.findChild(QLineEdit, "lineEdit_UserName")
-
+        # Connect signals and slots
+        self.backButton.clicked.connect(self.previous_image)
+        self.forwardButton.clicked.connect(self.next_image)
+        self.folderButton.clicked.connect(self.select_folder)
+        self.buttonStart.clicked.connect(self.start_engine)
+        self.buttonStop.clicked.connect(self.stop_engine)
         
-        self.button_Durdur.clicked.connect(self.durdur)
-        self.button_sec.clicked.connect(self.resimSec)
+        self.engineThread = None
+    def select_folder(self):
+        current_directory = os.getcwd()
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder', current_directory)
 
-        self.button_Geri.clicked.connect(self.geri)
-        self.button_ileri.clicked.connect(self.ileri)
+        if folder:
+            self.images = QDir(folder).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
+            self.images = [os.path.join(folder, img) for img in self.images]
+            self.index = 0
+            self.display_image()
 
+    def display_image(self):
+        if self.images:
+            pixmap = QtGui.QPixmap(self.images[self.index])
+            self.imageLabel.setPixmap(pixmap.scaled(self.imageLabel.size()))
 
+    def previous_image(self):
+        if self.images and self.index > 0:
+            self.index -= 1
+            self.display_image()
 
-        self.button_Baslat.clicked.connect(self.baslat)
-
+    def next_image(self):
+        if self.images and self.index < len(self.images) - 1:
+            self.index += 1
+            self.display_image()
+    def start_engine(self):
+        self.engineThread = EngineThread()
+        self.engineThread.start()
         
-        # InVisible
-        self.button_Durdur.setHidden(True)
-        self.max = 0
-        # Show the app
-        self.show()
+    def stop_engine(self):
+        if self.engineThread is not None:
+            engine.stop_engine()
+            self.engineThread.quit()
+            self.engineThread.wait()
+            self.engineThread = None
 
-    def baslat(self):
-        self.Widget_Navigate.setHidden(True)
-        self.button_Durdur.setHidden(False) # making visilbe ????
-        self.baslatma = Run_Thread()
-        self.baslatma.start()
+if __name__ == "__main__":
+    import sys
 
-    def start_stop(self):
-        if self.timer.isActive():
-            self.timer.stop()
-        else:
-            self.timer.start(1000)
-            
+    app = QtWidgets.QApplication(sys.argv)
 
-    def durdur(self):
-        self.Widget_Navigate.setHidden(False)
-        self.button_Durdur.setHidden(True) 
-        engine.stop_engine()
-        asdf = "Durdu"
-        self.label_image.setText(asdf)
-        
+    window = ImageViewer()
+    window.show()
 
-    def resimSec(self):
-        self.fname = QFileDialog.getOpenFileName(
-            self, "Open File", "output", "ALL Files (*);;PNG Files(*.png);;Jpg Files(*.jpg")
-        # ileri buton icin
-        self.dizin_yolu = os.path.dirname(self.fname[0])
-        a = (self.fname[0].split('/')[-1]).split('.')[0]
-        self.b = str(int(a) + 1)
-        self.open_image(self.fname[0])
-
-    def ileri(self):
-        acilacak = self.dizin_yolu + '/' + self.b + '.jpg'
-        print(acilacak)
-        self.b = str(int(self.b) + 1)  # for next image
-        if int(self.b) > int(self.max):
-            self.max = self.b
-        self.open_image(acilacak)
-
-    def geri(self):
-        acilacak = self.dizin_yolu + '/' + self.b + '.jpg'
-        print(acilacak)
-        self.b = str(int(self.b) - 1)
-        if int(self.b) == 0:
-            self.b = str(self.max)
-        print(self.b)
-        self.open_image(acilacak)
-
-    def open_image(self, dosya_yolu):
-        print("Dosya yolu", dosya_yolu)
-        try:
-            image = cv2.imread(dosya_yolu)
-            if image is not None:
-                display_photo = image
-                display_photo = cv2.resize(
-                    display_photo, (500, 500), interpolation=cv2.INTER_AREA)
-                rgb_image = cv2.cvtColor(display_photo, cv2.COLOR_BGR2RGB)
-                PIL_image = Image.fromarray(rgb_image).convert('RGBA')
-                qpixmap = QtGui.QPixmap.fromImage(QtImage(PIL_image))
-                self.label_image.setPixmap(qpixmap)
-            else:
-                print("Image not found or couldn't be read.")
-        except Exception as e:
-            print(e)
-            print("Resim Secilmedi")
-
-# Inıtialize the App
-app = QApplication(sys.argv)
-UIWindow = UI()
-
-app.exec()
-
+    sys.exit(app.exec())
 

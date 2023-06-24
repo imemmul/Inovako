@@ -91,17 +91,53 @@ font: 32px;</string>
     <widget class="QLabel" name="label_image">
      <property name="geometry">
       <rect>
-       <x>40</x>
-       <y>30</y>
-       <width>391</width>
-       <height>231</height>
+       <x>0</x>
+       <y>10</y>
+       <width>501</width>
+       <height>301</height>
       </rect>
      </property>
      <property name="text">
-      <string>TextLabel</string>
+      <string/>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_geri">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>360</y>
+       <width>111</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color:rgb(246, 97, 81);
+color: black;
+font: 32px;</string>
+     </property>
+     <property name="text">
+      <string>&lt;</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pushButton_ileri">
+     <property name="geometry">
+      <rect>
+       <x>120</x>
+       <y>360</y>
+       <width>111</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">background-color:rgb(246, 97, 81);
+color: black;
+font: 32px;</string>
+     </property>
+     <property name="text">
+      <string>&gt;</string>
      </property>
     </widget>
     <widget class="QPushButton" name="pushButton_sec">
@@ -122,42 +158,6 @@ font: 32px;</string>
       <string>Seç</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="pushButton_ileri">
-     <property name="geometry">
-      <rect>
-       <x>150</x>
-       <y>360</y>
-       <width>111</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="styleSheet">
-      <string notr="true">background-color:rgb(246, 97, 81);
-color: black;
-font: 32px;</string>
-     </property>
-     <property name="text">
-      <string>&gt;</string>
-     </property>
-    </widget>
-    <widget class="QPushButton" name="pushButton_geri">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>360</y>
-       <width>111</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="styleSheet">
-      <string notr="true">background-color:rgb(246, 97, 81);
-color: black;
-font: 32px;</string>
-     </property>
-     <property name="text">
-      <string>&lt;</string>
-     </property>
-    </widget>
    </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
@@ -166,7 +166,7 @@ font: 32px;</string>
      <x>0</x>
      <y>0</y>
      <width>800</width>
-     <height>22</height>
+     <height>19</height>
     </rect>
    </property>
   </widget>

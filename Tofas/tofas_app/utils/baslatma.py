@@ -2,7 +2,7 @@ from pypylon import pylon
 import time
 import numpy as np
 import cv2
-import infer
+import Inovako.Tofas.tofas_app.temps.infer as infer
 class BaslerCamera:
     def __init__(self, serial_number, exposure_time):
         self.camera = self.open_camera(serial_number, exposure_time)
