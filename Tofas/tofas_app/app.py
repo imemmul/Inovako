@@ -6,14 +6,14 @@ from engine import engine
 import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
-    parser.add_argument('--gray-thres', type=int, default=5)
+    parser.add_argument('--gray-thres', type=int, default=30)
     parser.add_argument('--exposure-time', type=list, default=[10000, 50000])
     parser.add_argument('--conf-thres', type=float, default=0.25)
     parser.add_argument('--iou-thres', type=float, default=0.65)
-    parser.add_argument('--interval', type=int, default=1)
+    parser.add_argument('--interval', type=float, default=0.1)
     parser.add_argument('--check-interval', type=int, default=5)
     parser.add_argument('--test', action="store_true")
     args = parser.parse_args()
@@ -44,6 +44,8 @@ class ImageViewer(QtWidgets.QMainWindow):
         self.exposure_time = self.findChild(QtWidgets.QSpinBox, 'exposure_time')
         self.exposure_time_2 = self.findChild(QtWidgets.QSpinBox, 'exposure_time_2')
         self.check_freq = self.findChild(QtWidgets.QSpinBox, 'check_frequency')
+        self.gray_thres = self.findChild(QtWidgets.QSpinBox, 'gray_thres')
+        self.interval = self.findChild(QtWidgets.QDoubleSpinBox, 'interval')
         
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
@@ -85,6 +87,9 @@ class ImageViewer(QtWidgets.QMainWindow):
             args.check_interval = self.check_freq.value()
         print(f"check interval set to {int(args.check_interval)}")
         exposure_list = [int(self.exposure_time.value()), int(self.exposure_time_2.value())]
+        args.gray_thres = self.gray_thres.value()
+        args.interval = self.interval.value()
+        print(f"gray_thres : {args.gray_thres}")
         if 0 not in exposure_list:
             args.exposure_time = exposure_list
             print(f"what is set exposure time {args.exposure_time}")
