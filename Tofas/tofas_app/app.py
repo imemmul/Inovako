@@ -2,7 +2,7 @@ import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread
 from PyQt6.QtWidgets import QMessageBox
-from engine import engine
+from engine import engine, engine_v2
 import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -16,13 +16,18 @@ def parse_args():
     parser.add_argument('--interval', type=float, default=0.1)
     parser.add_argument('--check-interval', type=int, default=5)
     parser.add_argument('--test', action="store_true")
+    parser.add_argument('--test-engine', action="store_true")
     args = parser.parse_args()
     return args
 args = parse_args()
 
 class EngineThread(QThread):
     def run(self):
-        engine.run_test(args)
+        if args.test_engine:
+            print(f"engine_v2 is running")
+            engine_v2.run_test(args)
+        else:
+            engine.run_test(args)
 
 class ImageViewer(QtWidgets.QMainWindow):
     def __init__(self):
@@ -113,7 +118,11 @@ class ImageViewer(QtWidgets.QMainWindow):
         
     def stop_engine(self):
         if self.engineThread is not None:
-            engine.stop_engine()
+            if args.test_engine:
+                print(f"engine_v2 is running")
+                engine_v2.stop_engine()
+            else:
+                engine.stop_engine()
             self.engineThread.quit()
             self.engineThread.wait()
             self.engineThread = None

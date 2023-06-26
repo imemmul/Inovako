@@ -10,10 +10,12 @@ from .models.torch_utils import seg_postprocess
 from .models.utils import blob, letterbox
 import multiprocessing
 from multiprocessing import Queue, Process, set_start_method
+from threading import Lock
 import os
-
+from concurrent.futures import ThreadPoolExecutor
 # TODO write a no camera handler
 # TODO handle the issue about set_start_method('spawn')
+
 DEFAULT_EXPOSURE = 10000
 
 
@@ -73,44 +75,48 @@ def part_detection(img, threshold):
     return gray_value > threshold
 
 def run_devices(cam_array, nums_cams, args):
-    # total delay 55ms
     q = Queue()
     p = Process(target=run_inference, args=(q, args, running))
     p.start()
+    # TODO differ the file nameing count and capture amount ?
+    # file_count = len(os.listdir(args.out_dir))
     capture_amount = 0
+    lock = Lock()
     exp_time = 0
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
-    while running.is_set():
-        # print(f"what is capture amount {capture_amount}")
-        for cam_id, cam in enumerate(cam_array):
-            exp_time = args.exposure_time[int(capture_amount % 2)]
-            # print(f"what is exp_time: {int(exp_time)}")
-            cam.ExposureTime.SetValue(int(exp_time))
-        for cam_id, cam in enumerate(cam_array):
-            start_time = time.time()
-            cam.ExecuteSoftwareTrigger()
-            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-            # print(f"cam exposureTime: {cam.ExposureTime}")
-            if grabResult.GrabSucceeded():
-                # Access the image data
-                # print(f"image captured from cam:{cam_id}")
-                img = grabResult.GetArray()
-                # Release the grab result
-                grabResult.Release()
-                if part_detection(img, args.gray_thres):
-                    print(f"image put in queue")
-                    q.put((img, cam_id, exp_time, capture_amount))
-                    capture_amount += (1 / (cam_array.GetSize())) # not 1 ?
-                    time.sleep(args.interval)
-                else:
-                    print(f"No Part detected, checking in every {args.check_interval} seconds")
-                    time.sleep(args.check_interval)
-            end_time = time.time()
-            delay = end_time - start_time
-            print(f"delay between cameras: {delay}")
-    cam_array.StopGrabbing()
-    p.terminate()
-    q.put(None)  # signal the inference process to end
+
+    # Define a function to be run in each thread
+    def trigger_and_capture(cam, cam_id, exp_time, capture_amount):
+        cam.ExecuteSoftwareTrigger()
+        grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+        
+        if grabResult.GrabSucceeded():
+            print(f"image captured from cam:{cam_id}")
+            img = grabResult.GetArray()
+            grabResult.Release()
+            if part_detection(img, args.gray_thres):
+                print(f"image put in queue")
+                with lock:
+                    capture_amount += 1
+                q.put((img, cam_id, exp_time, capture_amount))
+                time.sleep(args.interval)
+            else:
+                print(f"No Part detected, checking in every {args.check_interval} seconds")
+                time.sleep(args.check_interval)
+        return capture_amount
+    futures = []
+    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
+        while running.is_set():
+            for cam_id, cam in enumerate(cam_array):
+                print(f"capture amount: {capture_amount}")
+                exp_time = args.exposure_time[int(capture_amount % 2)]
+                cam.ExposureTime.SetValue(int(exp_time))
+                executor.submit(trigger_and_capture, cam, cam_id, exp_time, capture_amount)
+
+        executor.shutdown(wait=True)  # Stop the executor
+        if p.is_alive(): # If the process is still running, terminate it
+            p.terminate()
+        p.join()
 
 def load_engine(args):
     device = torch.device(args.device)
