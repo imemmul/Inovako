@@ -131,6 +131,7 @@ def load_devices(args):
         cam.Attach(tlf.CreateDevice(devs[idx]))
     cam_array.Open()
     for idx, cam in enumerate(cam_array):
+        # TODO flash feature
         camera_serial = cam.DeviceInfo.GetSerialNumber()
         print(f"set context {idx} for camera {camera_serial}")
         cam.SetCameraContext(idx)

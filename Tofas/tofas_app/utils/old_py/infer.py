@@ -22,7 +22,7 @@ class BaslerCamera:
     def open_camera(self, exposure_time, device):
         camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateDevice(device))
         camera.Open()
-
+    
         camera.LineSelector.SetValue("Line2")
         camera.LineMode.SetValue("Output")
         camera.LineSource.SetValue("ExposureActive")

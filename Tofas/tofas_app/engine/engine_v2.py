@@ -15,9 +15,102 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 # TODO write a no camera handler
 # TODO handle the issue about set_start_method('spawn')
+# TODO flash feature
+# TODO Mask colors
 
 DEFAULT_EXPOSURE = 10000
+TEST_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/engine/mock_images/"
 
+class MockCameraArray:
+    def __init__(self, num_cams):
+        self.cameras = [MockInstantCamera(id=i) for i in range(num_cams)]
+        self.is_grabbing = False
+
+    def StartGrabbing(self, strategy=None):
+        self.is_grabbing = True
+        for camera in self.cameras:
+            # Here you might want to initiate the grabbing process for each camera
+            # but for this mock class, we'll just change a flag
+            camera.is_grabbing = True
+
+    def StopGrabbing(self):
+        self.is_grabbing = False
+        for camera in self.cameras:
+            # Here you might want to stop the grabbing process for each camera
+            # but for this mock class, we'll just change a flag
+            camera.is_grabbing = False
+
+    def __getitem__(self, index):
+        return self.cameras[index]
+
+    def __len__(self):
+        return len(self.cameras)
+
+    def Open(self):
+        for camera in self.cameras:
+            camera.Open()
+
+    def Attach(self, device):
+        for camera in self.cameras:
+            camera.Attach(device)
+
+class MockInstantCamera:
+    def __init__(self, image_size=(720, 1280), pixel_range=(0, 255), id=0):
+        self.image_size = image_size
+        self.pixel_range = pixel_range
+        self.PixelFormat = MockAttribute('Mono8')
+        self.Width = MockAttribute(1280)
+        self.Height = MockAttribute(720)
+        self.TriggerSelector = "FrameStart"
+        self.TriggerMode = MockAttribute('On')
+        self.TriggerSource = MockAttribute('Software')
+        self.ExposureTime = MockAttribute(10000)
+        self.DeviceInfo = MockDeviceInfo(id)
+        print(f"grabbed image {os.path.join(TEST_DIR, sorted(os.listdir(TEST_DIR))[id])} for cam: {id}")
+        self.grab_result = cv2.imread(os.path.join(TEST_DIR, sorted(os.listdir(TEST_DIR))[id]))
+
+    def Attach(self, device):
+        pass
+
+    def ExecuteSoftwareTrigger(self):
+        pass
+
+    def RetrieveResult(self, timeout, timeout_handling):
+        return self.grab_result 
+
+    def Open(self):
+        pass
+
+    def SetCameraContext(self, idx):
+        pass
+class MockAttribute:
+    def __init__(self, value):
+        self.value = value
+
+    def SetValue(self, value):
+        self.value = value
+
+    def GetValue(self):
+        return self.value
+
+class MockDeviceInfo:
+    def __init__(self, id):
+        self.serial_number = f'Mock{id}'
+
+    def GetSerialNumber(self):
+        return self.serial_number
+
+def is_mask_black(mask):
+    """
+    This function checks if the given mask is black or not.
+
+    Args:
+    mask (numpy.ndarray): The mask to be checked.
+
+    Returns:
+    bool: True if the mask is black, False otherwise.
+    """
+    return torch.all(mask == 0).item()
 
 def run_inference(q:Queue, args, running):
     engine, device, H, W  = load_engine(args)
@@ -49,6 +142,10 @@ def run_inference(q:Queue, args, running):
             mask_colors = torch.asarray(MASK_COLORS, device=device)[indices]
             mask_colors = mask_colors.view(-1, 1, 1, 3)
             mask_colors = masks @ mask_colors
+            if is_mask_black(mask_colors):
+                print("The mask is black!")
+            else:
+                print("The mask is not black!")
             inv_alph_masks = (1 - masks * 0.5).cumprod(0)
             mcs = (mask_colors * inv_alph_masks).sum(0) * 2
             seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
@@ -71,7 +168,7 @@ def run_inference(q:Queue, args, running):
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
-    # print(f"gray_value: {gray_value}")
+    print(f"gray_value: {gray_value}")
     return gray_value > threshold
 
 def run_devices(cam_array, nums_cams, args):
@@ -81,42 +178,105 @@ def run_devices(cam_array, nums_cams, args):
     # TODO differ the file nameing count and capture amount ?
     # file_count = len(os.listdir(args.out_dir))
     capture_amount = 0
-    lock = Lock()
     exp_time = 0
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
 
     # Define a function to be run in each thread
-    def trigger_and_capture(cam, cam_id, exp_time, capture_amount):
-        cam.ExecuteSoftwareTrigger()
-        grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-        
-        if grabResult.GrabSucceeded():
-            print(f"image captured from cam:{cam_id}")
-            img = grabResult.GetArray()
-            grabResult.Release()
-            if part_detection(img, args.gray_thres):
-                print(f"image put in queue")
-                with lock:
-                    capture_amount += 1
-                q.put((img, cam_id, exp_time, capture_amount))
-                time.sleep(args.interval)
-            else:
-                print(f"No Part detected, checking in every {args.check_interval} seconds")
-                time.sleep(args.check_interval)
-        return capture_amount
-    futures = []
-    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
+    def trigger_and_capture(cam, cam_id, exp_time, capture_amount, running):
+        capture_amount = 0
         while running.is_set():
-            for cam_id, cam in enumerate(cam_array):
-                print(f"capture amount: {capture_amount}")
-                exp_time = args.exposure_time[int(capture_amount % 2)]
-                cam.ExposureTime.SetValue(int(exp_time))
-                executor.submit(trigger_and_capture, cam, cam_id, exp_time, capture_amount)
+            print("iam in")
+            exp_time = args.exposure_time[int(capture_amount % 2)]
+            cam.ExposureTime.SetValue(int(exp_time))
+            cam.ExecuteSoftwareTrigger()
+            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+            # print(f"grabbed something")
+            if grabResult.GrabSucceeded():
+                print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
+                img = grabResult.GetArray()
+                grabResult.Release()
+                if part_detection(img, args.gray_thres):
+                    print(f"image put in queue")
+                    capture_amount += 1
+                    q.put((img, cam_id, exp_time, capture_amount))
+                    time.sleep(args.interval)
+                else:
+                    print(f"No Part detected, checking in every {args.check_interval} seconds")
+                    time.sleep(args.check_interval)
+            print(f"camera {cam_id} captured image in {time.time()}")
+        print(f"Thread with cam_id {cam_id} stopped")
+    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
+        for cam_id, cam in enumerate(cam_array):
+            # print(f"capture amount: {capture_amount}")
+            executor.submit(trigger_and_capture, cam, cam_id, exp_time, capture_amount, running)
+    cam_array.StopGrabbing()
+    print(f"executor shutdown")
+    executor.shutdown(wait=True)  # Stop the executor
+    print(f"executor shutdowned")
+    if p.is_alive(): # If the process is still running, terminate it
+        p.terminate()
+    p.join()
 
-        executor.shutdown(wait=True)  # Stop the executor
-        if p.is_alive(): # If the process is still running, terminate it
-            p.terminate()
-        p.join()
+
+def run_devices_test(cam_array, nums_cams, args):
+    q = Queue()
+    p = Process(target=run_inference, args=(q, args, running))
+    p.start()
+    # TODO differ the file nameing count and capture amount ?
+    # file_count = len(os.listdir(args.out_dir))
+    capture_amount = 0
+    exp_time = 0
+    print(f"starting cam grabbing test")
+    cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
+
+    # Define a function to be run in each thread
+    def trigger_and_capture(cam, cam_id, exp_time, capture_amount, running, delay_dict):
+        capture_amount = 0
+        # while running.is_set():
+        for _ in range(1):
+            exp_time = args.exposure_time[int(capture_amount % 2)]
+            cam.ExposureTime = int(exp_time)
+            cam.ExecuteSoftwareTrigger()
+            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+            # print(f"grabbed something")
+            if True:
+                print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
+                img = grabResult
+                if part_detection(img, args.gray_thres):
+                    print(f"image put in queue")
+                    capture_amount += 1
+                    q.put((img, cam_id, exp_time, capture_amount))
+                    time.sleep(args.interval)
+                else:
+                    print(f"No Part detected, checking in every {args.check_interval} seconds")
+                    time.sleep(args.check_interval)
+            delay_dict[cam_id] = time.time()
+            # print(f"camera {cam_id} captured image in {time.time()}")
+        print(f"Thread with cam_id {cam_id} stopped")
+    delay_dict = {}
+    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
+        for cam_id, cam in enumerate(cam_array):
+            # print(f"capture amount: {capture_amount}")
+            executor.submit(trigger_and_capture, cam, cam_id, exp_time, capture_amount, running, delay_dict)
+    cam_array.StopGrabbing()
+    print(f"executor shutdown")
+    executor.shutdown(wait=False)  # Stop the executor
+    print(f"executor shutdowned")
+    # Get the start times in a list
+    start_times = list(delay_dict.values())
+
+    # Sort the start times
+    start_times.sort()
+
+    # Calculate the delays
+    delays = [start_times[i] - start_times[i - 1] for i in range(1, len(start_times))]
+
+    # Print the delays
+    for i in range(len(delays)):
+        print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
+    if p.is_alive(): # If the process is still running, terminate it
+        p.terminate()
+    p.join()
 
 def load_engine(args):
     device = torch.device(args.device)
@@ -177,12 +337,22 @@ def run_engine(args):
     print(f"Devices are loaded, running")
     run_devices(cam_array=cam_array, nums_cams=num_cams, args=args)
 
+def run_engine_test(args):
+    # TODO run_this
+    global running
+    running = multiprocessing.Event()
+    running.set()
+    cam_array = MockCameraArray(8)
+    print(f"Devices are loaded, running")
+    run_devices_test(cam_array=cam_array, nums_cams=8, args=args)
+
+
 def run_test(args):
     if len(os.listdir(args.out_dir)) > 0:
         for out in os.listdir(args.out_dir):
             os.remove(f"{args.out_dir}{out}")
         print(f"Deleted all files in out-dir")
-    run_engine(args)
+    run_engine_test(args)
 
 if __name__ == "__main__":
     set_start_method('spawn') # this is temp

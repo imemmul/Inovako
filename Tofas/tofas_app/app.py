@@ -4,9 +4,11 @@ from PyQt6.QtCore import QDir, QThread
 from PyQt6.QtWidgets import QMessageBox
 from engine import engine, engine_v2
 import argparse
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/Inovako/tensorrt_engines/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)

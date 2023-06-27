@@ -9,10 +9,7 @@ CLASSES = ('Crack', 'Hole', 'Necking')
 # colors for per classes
 
 
-MASK_COLORS = np.array([(255, 0, 0),
-                        (0, 255, 0),
-                        (0, 0, 255),],
-                       dtype=np.float32) / 255.
+MASK_COLORS = np.array([(255, 120, 0), (120, 255, 0), (120, 0, 255),], dtype=np.float32) / 255.
 
 
 COLORS = {
