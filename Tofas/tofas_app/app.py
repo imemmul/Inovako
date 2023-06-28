@@ -2,9 +2,10 @@ import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread
 from PyQt6.QtWidgets import QMessageBox
-from engine import engine, engine_v2
+from engine import engine_v2
 import argparse
 
+# TODO more communication between engines
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -26,11 +27,11 @@ args = parse_args()
 class EngineThread(QThread):
     def run(self):
         if args.test_engine:
-            print(f"engine_v2 is running")
+            print(f"engine_v2 is running test")
             engine_v2.run_test(args)
         else:
-            engine.run_test(args)
-
+            print(f"engine_v2 is running deployment")
+            engine_v2.run_engine(args)
 class ImageViewer(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
@@ -124,7 +125,7 @@ class ImageViewer(QtWidgets.QMainWindow):
                 print(f"engine_v2 is running")
                 engine_v2.stop_engine()
             else:
-                engine.stop_engine()
+                engine_v2.stop_engine()
             self.engineThread.quit()
             self.engineThread.wait()
             self.engineThread = None
