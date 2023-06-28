@@ -1,15 +1,15 @@
 import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
-from PyQt6.QtCore import QDir, QThread
+from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
 from engine import engine_v2
 import argparse
-
+import time
 # TODO more communication between engines
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/Inovako/tensorrt_engines/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
@@ -32,7 +32,7 @@ class EngineThread(QThread):
         else:
             print(f"engine_v2 is running deployment")
             engine_v2.run_engine(args)
-class ImageViewer(QtWidgets.QMainWindow):
+class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
@@ -54,17 +54,19 @@ class ImageViewer(QtWidgets.QMainWindow):
         self.check_freq = self.findChild(QtWidgets.QSpinBox, 'check_frequency')
         self.gray_thres = self.findChild(QtWidgets.QSpinBox, 'gray_thres')
         self.interval = self.findChild(QtWidgets.QDoubleSpinBox, 'interval')
-        
+        self.ins_time_widget = self.findChild(QtWidgets.QLabel, 'inspection_time')
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
         self.folderButton.clicked.connect(self.select_folder)
         self.buttonStart.clicked.connect(self.start_stop_engine)
-        self.exposure_time.setMaximum(100000)
-        self.exposure_time_2.setMaximum(100000)
+        self.exposure_time.setMaximum(1000000)
+        self.exposure_time_2.setMaximum(1000000)
         self.engine_running = False
         self.engineThread = None
-
+        self.ins_time_start = 0
+        self.ins_time_stop = 0
+    
     def select_folder(self):
         current_directory = os.getcwd()
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder', current_directory)
@@ -93,17 +95,19 @@ class ImageViewer(QtWidgets.QMainWindow):
     def start_stop_engine(self):
         if self.check_freq.value() != 0:
             args.check_interval = self.check_freq.value()
-        print(f"check interval set to {int(args.check_interval)}")
+        # print(f"check interval set to {int(args.check_interval)}")
         exposure_list = [int(self.exposure_time.value()), int(self.exposure_time_2.value())]
         args.gray_thres = self.gray_thres.value()
         args.interval = self.interval.value()
-        print(f"gray_thres : {args.gray_thres}")
+        # print(f"gray_thres : {args.gray_thres}")
         if 0 not in exposure_list:
             args.exposure_time = exposure_list
-            print(f"what is set exposure time {args.exposure_time}")
+            # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
+                self.ins_time_stop = time.time()
                 self.stop_engine()
             else:
+                self.ins_time_start = time.time()
                 self.start_engine()
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Valid Range of Exposure Times')
@@ -118,7 +122,12 @@ class ImageViewer(QtWidgets.QMainWindow):
         self.buttonStart.setText("Durdur")
         self.engineThread = EngineThread()
         self.engineThread.start()
-        
+
+    def format_time(self, ins_time):
+        hours, remainder = divmod(ins_time, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return "{:02}:{:02}:{:02}".format(int(hours), int(minutes), int(seconds))
+    
     def stop_engine(self):
         if self.engineThread is not None:
             if args.test_engine:
@@ -135,13 +144,15 @@ class ImageViewer(QtWidgets.QMainWindow):
         self.engine_running = False
         self.buttonStart.setStyleSheet("background-color: rgb(142, 236, 186); color: black; font: 32px")
         self.buttonStart.setText("Baslat")
+        ins_time = self.ins_time_stop - self.ins_time_start
+        self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
 
 if __name__ == "__main__":
     import sys
 
     app = QtWidgets.QApplication(sys.argv)
 
-    window = ImageViewer()
+    window = Inovako()
     window.show()
 
     sys.exit(app.exec())

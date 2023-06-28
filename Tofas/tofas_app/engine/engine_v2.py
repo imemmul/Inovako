@@ -13,13 +13,7 @@ import multiprocessing
 from multiprocessing import Queue, Process, set_start_method
 import os
 from concurrent.futures import ThreadPoolExecutor
-
-# TODO write a no camera handler
-# TODO flash feature DONE
-# FIXME Mask colors FIXED
-# FIXME Try except blocks
-# TODO crash handler
-# TODO Config memorizer which memorize default parameters for application
+from PyQt6.QtWidgets import QMessageBox
 
 DEFAULT_EXPOSURE = 10000
 TEST_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/engine/mock_images/"
@@ -87,6 +81,7 @@ class MockInstantCamera:
 
     def SetCameraContext(self, idx):
         pass
+
 class MockAttribute:
     def __init__(self, value):
         self.value = value
@@ -103,12 +98,6 @@ class MockDeviceInfo:
 
     def GetSerialNumber(self):
         return self.serial_number
-
-def is_mask_black(mask):
-    """
-    this function stands for handling the black mask color
-    """
-    return torch.all(mask == 0).item()
 
 def run_inference(q:Queue, args, running):
     try:
@@ -329,15 +318,16 @@ def load_devices(args):
             cam.Width.SetValue(1280)
             cam.Height.SetValue(720)
             cam.TriggerSelector = "FrameStart"
+            cam.TriggerMode.SetValue('On')
+            cam.TriggerSource.SetValue('Software')
+            # below 3 lines run the flashes on cameras
             cam.LineSelector.SetValue("Line2")
             cam.LineMode.SetValue("Output")
             cam.LineSource.SetValue("ExposureActive")
-            cam.TriggerMode.SetValue('On')
-            cam.TriggerSource.SetValue('Software')
         return cam_array, num_cams
     else:
         print(f"No devices found")
-        sys.exit()
+
     
 
 def parse_args():

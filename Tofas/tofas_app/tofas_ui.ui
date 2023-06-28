@@ -48,9 +48,9 @@ font: 32px;</string>
    <widget class="QLabel" name="label_sure">
     <property name="geometry">
      <rect>
-      <x>570</x>
+      <x>560</x>
       <y>120</y>
-      <width>201</width>
+      <width>101</width>
       <height>21</height>
      </rect>
     </property>
@@ -58,7 +58,7 @@ font: 32px;</string>
      <string notr="true"/>
     </property>
     <property name="text">
-     <string>Muayene suresi : 0</string>
+     <string>Muayene suresi :</string>
     </property>
    </widget>
    <widget class="QWidget" name="widget" native="true">
@@ -125,9 +125,9 @@ font: 32px;</string>
     <widget class="QPushButton" name="pushButton_sec">
      <property name="geometry">
       <rect>
-       <x>270</x>
+       <x>240</x>
        <y>360</y>
-       <width>211</width>
+       <width>251</width>
        <height>61</height>
       </rect>
      </property>
@@ -150,6 +150,9 @@ font: 32px;</string>
       <height>23</height>
      </rect>
     </property>
+    <property name="singleStep">
+     <number>100</number>
+    </property>
    </widget>
    <widget class="QSpinBox" name="exposure_time_2">
     <property name="geometry">
@@ -159,6 +162,9 @@ font: 32px;</string>
       <width>91</width>
       <height>23</height>
      </rect>
+    </property>
+    <property name="singleStep">
+     <number>100</number>
     </property>
    </widget>
    <widget class="QLabel" name="label">
@@ -229,6 +235,9 @@ font: 32px;</string>
       <height>23</height>
      </rect>
     </property>
+    <property name="singleStep">
+     <double>0.100000000000000</double>
+    </property>
    </widget>
    <widget class="QLabel" name="label_4">
     <property name="geometry">
@@ -241,6 +250,19 @@ font: 32px;</string>
     </property>
     <property name="text">
      <string>Capture Frequency</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="inspection_time">
+    <property name="geometry">
+     <rect>
+      <x>670</x>
+      <y>120</y>
+      <width>121</width>
+      <height>21</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>00:00:00</string>
     </property>
    </widget>
   </widget>
