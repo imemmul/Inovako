@@ -99,6 +99,12 @@ class MockDeviceInfo:
     def GetSerialNumber(self):
         return self.serial_number
 
+def delete_files(args, limit):
+    if len(os.listdir(args.out_dir)) > limit:
+        for out in os.listdir(args.out_dir):
+            os.remove(f"{args.out_dir}{out}")
+        print(f"Deleted all files in out-dir")
+
 def run_inference(q:Queue, args, running):
     try:
         engine, device, H, W  = load_engine(args)
@@ -107,9 +113,13 @@ def run_inference(q:Queue, args, running):
         return
     while running.is_set() or q.qsize() > 0:
         try:
+
+            # TODO DELETE THIS BEFORE DEPLOYMENT
+            delete_files(args, limit=200)
             count = len(os.listdir(args.out_dir))
             # print(f"what is q_length = {q.qsize()}")
-            image, cam_id, exp_time, capture_id = q.get()
+            image, cam_id, exp_time, capture_id, capture_time = q.get()
+            print(f"cam id {cam_id} captured in {capture_time}")
             bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             draw = bgr.copy()
             # print(f"what is shape: {draw.shape}")
@@ -151,7 +161,7 @@ def run_inference(q:Queue, args, running):
                     cv2.putText(draw, f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, [225, 255, 255], thickness=2)
                 count += 1
                 print(f"image saved")
-                cv2.imwrite(filename=f"{args.out_dir}output_{count}_{cam_id}_{capture_id}_{exp_time}.jpg", img=draw)
+                cv2.imwrite(filename=f"{args.out_dir}output_{count}_{capture_id}_{cam_id}_{exp_time}.jpg", img=draw)
         except Exception as e:
             print(f"Some error occured in run_inference: {e}")
 
@@ -190,7 +200,8 @@ def run_devices(cam_array, nums_cams, args):
                     if part_detection(img, args.gray_thres):
                         print(f"image put in queue")
                         capture_amount += 1
-                        q.put((img, cam_id, exp_time, capture_amount))
+                        capture_time = time.time()
+                        q.put((img, cam_id, exp_time, capture_amount, capture_time))
                         time.sleep(args.interval)
                     else:
                         print(f"No Part detected, checking in every {args.check_interval} seconds")
