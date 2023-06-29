@@ -2,7 +2,7 @@ import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
-from engine import engine_v2
+from engine import engine_v2, engine_v3
 import argparse
 import time
 
@@ -31,8 +31,12 @@ args = parse_args()
 class EngineThread(QThread):
     def run(self):
         if args.test_engine:
-            print(f"engine_v2 is running test")
-            engine_v2.run_test(args)
+            if args.test:
+                print(f"engine_v3 is running test")
+                time.sleep(1)
+                engine_v3.run_test(args)
+            else:
+                engine_v3.run_engine(args)
         else:
             print(f"engine_v2 is running deployment")
             engine_v2.run_engine(args)
@@ -137,9 +141,9 @@ class Inovako(QtWidgets.QMainWindow):
         if self.engineThread is not None:
             if args.test_engine:
                 print(f"engine_v2 is running")
-                engine_v2.stop_engine()
+                engine_v3.stop_engine()
             else:
-                engine_v2.stop_engine()
+                engine_v3.stop_engine()
             self.engineThread.quit()
             self.engineThread.wait()
             self.engineThread = None
