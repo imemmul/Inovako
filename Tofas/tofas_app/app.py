@@ -5,7 +5,10 @@ from PyQt6.QtWidgets import QMessageBox
 from engine import engine_v2
 import argparse
 import time
+
 # TODO more communication between engines
+# TODO select one of the cameras and run grayish detection on it, if detected run inference for all cameras with args.interval interval.
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -20,6 +23,7 @@ def parse_args():
     parser.add_argument('--check-interval', type=int, default=5)
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--test-engine', action="store_true")
+    parser.add_argument('--master', type=int, default=1)
     args = parser.parse_args()
     return args
 args = parse_args()
@@ -32,6 +36,7 @@ class EngineThread(QThread):
         else:
             print(f"engine_v2 is running deployment")
             engine_v2.run_engine(args)
+
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()

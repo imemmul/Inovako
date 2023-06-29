@@ -184,7 +184,7 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>230</y>
+      <y>280</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -197,9 +197,9 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>680</x>
-      <y>230</y>
+      <y>280</y>
       <width>91</width>
-      <height>23</height>
+      <height>16</height>
      </rect>
     </property>
    </widget>
@@ -207,7 +207,7 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>260</y>
+      <y>310</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -220,9 +220,9 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>680</x>
-      <y>260</y>
+      <y>310</y>
       <width>91</width>
-      <height>23</height>
+      <height>16</height>
      </rect>
     </property>
    </widget>
@@ -230,9 +230,9 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>680</x>
-      <y>290</y>
+      <y>340</y>
       <width>91</width>
-      <height>23</height>
+      <height>16</height>
      </rect>
     </property>
     <property name="singleStep">
@@ -243,7 +243,7 @@ font: 32px;</string>
     <property name="geometry">
      <rect>
       <x>560</x>
-      <y>290</y>
+      <y>340</y>
       <width>121</width>
       <height>16</height>
      </rect>
@@ -263,6 +263,19 @@ font: 32px;</string>
     </property>
     <property name="text">
      <string>00:00:00</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_5">
+    <property name="geometry">
+     <rect>
+      <x>560</x>
+      <y>250</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Master Camera</string>
     </property>
    </widget>
   </widget>

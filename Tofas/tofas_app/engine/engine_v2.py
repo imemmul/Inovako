@@ -6,18 +6,18 @@ import numpy as np
 import torch
 import argparse
 from .models import TRTModule
-from .config import CLASSES, COLORS, MASK_COLORS
+from .config import CLASSES, COLORS, MASK_COLORS, ALPHA
 from .models.torch_utils import seg_postprocess
 from .models.utils import blob, letterbox
 import multiprocessing
 from multiprocessing import Queue, Process, set_start_method
 import os
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from PyQt6.QtWidgets import QMessageBox
 
 DEFAULT_EXPOSURE = 10000
 TEST_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/engine/mock_images/"
-
+# TODO ProcessPoolExecutor
 # below classes is for mocking the pypylon InstantCamera object
 class MockCameraArray:
     def __init__(self, num_cams):
@@ -113,55 +113,58 @@ def run_inference(q:Queue, args, running):
         return
     while running.is_set() or q.qsize() > 0:
         try:
-
-            # TODO DELETE THIS BEFORE DEPLOYMENT
-            delete_files(args, limit=200)
+            delete_files(args, limit=200) # TODO DELETE THIS BEFORE DEPLOYMENT
             count = len(os.listdir(args.out_dir))
             # print(f"what is q_length = {q.qsize()}")
             image, cam_id, exp_time, capture_id, capture_time = q.get()
             print(f"cam id {cam_id} captured in {capture_time}")
             bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             draw = bgr.copy()
-            # print(f"what is shape: {draw.shape}")
             bgr, ratio, dwdh = letterbox(bgr, (W, H))
             dw, dh = int(dwdh[0]), int(dwdh[1])
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             tensor, seg_img = blob(rgb, return_seg=True)
             dwdh = torch.asarray(dwdh * 2, dtype=torch.float32, device=device)
             tensor = torch.asarray(tensor, device=device)
-
+            # inference
             data = engine(tensor)
 
-            seg_img = torch.asarray(seg_img[dh:H - dh, dw:W - dw, [2, 1, 0]], device=device)
-            bboxes, scores, labels, masks = seg_postprocess(data, bgr.shape[:2], args.conf_thres, args.iou_thres)
-            print(f"running inference on captured images from cam: {cam_id}")
+            seg_img = torch.asarray(seg_img[dh:H - dh, dw:W - dw, [2, 1, 0]],
+                                    device=device)
+            bboxes, scores, labels, masks = seg_postprocess(
+                data, bgr.shape[:2], args.conf_thres, args.iou_thres)
+            
             if len(bboxes) == 0:
-                print("Nothing detected.")
-            else:
-                # print(f"something detected")
-                masks = masks[:, dh:H - dh, dw:W - dw, :]
-                indices = (labels % len(MASK_COLORS)).long()
-                mask_colors = torch.asarray(MASK_COLORS, device=device)[indices]
-                mask_colors = mask_colors.view(-1, 1, 1, 3)
-                mask_colors = masks @ mask_colors
-                inv_alph_masks = (1 - masks * 0.5).cumprod(0)
-                mcs = (mask_colors * inv_alph_masks).sum(0) * 2
-                seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
-                draw = cv2.resize(seg_img.cpu().numpy().astype(np.uint8), draw.shape[:2][::-1])
+                print(f"nothing detected")
 
-                bboxes -= dwdh
-                bboxes /= ratio
+            masks = masks[:, dh:H - dh, dw:W - dw, :]
+            indices = (labels % len(MASK_COLORS)).long()
+            mask_colors = torch.asarray(MASK_COLORS, device=device)[indices]
+            mask_colors = mask_colors.view(-1, 1, 1, 3) * ALPHA
+            mask_colors = masks @ mask_colors
+            inv_alph_masks = (1 - masks * 0.5).cumprod(0)
+            mcs = (mask_colors * inv_alph_masks).sum(0) * 2
+            seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
+            draw = cv2.resize(seg_img.cpu().numpy().astype(np.uint8),
+                            draw.shape[:2][::-1])
 
-                for (bbox, score, label) in zip(bboxes, scores, labels):
-                    bbox = bbox.round().int().tolist()
-                    cls_id = int(label)
-                    cls = CLASSES[cls_id]
-                    color = COLORS[cls]
-                    cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
-                    cv2.putText(draw, f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, [225, 255, 255], thickness=2)
-                count += 1
-                print(f"image saved")
-                cv2.imwrite(filename=f"{args.out_dir}output_{count}_{capture_id}_{cam_id}_{exp_time}.jpg", img=draw)
+            bboxes -= dwdh
+            bboxes /= ratio
+
+            for (bbox, score, label) in zip(bboxes, scores, labels):
+                bbox = bbox.round().int().tolist()
+                cls_id = int(label)
+                cls = CLASSES[cls_id]
+                color = COLORS[cls]
+                cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
+                cv2.putText(draw,
+                            f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.75, [225, 255, 255],
+                            thickness=2)
+            count += 1
+            print(f"image saved")
+            cv2.imwrite(filename=f"{args.out_dir}output_{count}_{capture_id}_{cam_id}_{exp_time}.jpg", img=draw)
         except Exception as e:
             print(f"Some error occured in run_inference: {e}")
 
@@ -210,10 +213,10 @@ def run_devices(cam_array, nums_cams, args):
             except Exception as e:
                 print(f"Some Error occured in trigger_and_capture, {e}")
         print(f"Thread with cam_id {cam_id} stopped")
-
+        cam.Close()
     delay_dict = {}
     try:
-        with ThreadPoolExecutor(max_workers=nums_cams) as executor:
+        with ProcessPoolExecutor(max_workers=nums_cams) as executor: # TODO is process or thread better
             for cam_id, cam in enumerate(cam_array):
                 print(f"cam id creating thread: {cam_id}")
                 executor.submit(trigger_and_capture, cam, cam_id, exp_time, running, delay_dict)
@@ -248,7 +251,7 @@ def run_devices_test(cam_array, nums_cams, args):
     p.start()
     exp_time = 0
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
-
+    capture_time = 0
     # Define a function to be run in each thread
     def trigger_and_capture(cam, cam_id, exp_time, running, delay_dict):
         capture_amount = 0
@@ -265,7 +268,8 @@ def run_devices_test(cam_array, nums_cams, args):
                 if part_detection(img, args.gray_thres):
                     print(f"image put in queue")
                     capture_amount += 1
-                    q.put((img, cam_id, exp_time, capture_amount))
+                    capture_time = time.time()
+                    q.put((img, cam_id, exp_time, capture_amount, capture_time))
                     time.sleep(args.interval)
                 else:
                     print(f"No Part detected, checking in every {args.check_interval} seconds")
@@ -277,7 +281,8 @@ def run_devices_test(cam_array, nums_cams, args):
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
         for cam_id, cam in enumerate(cam_array):
             # print(f"capture amount: {capture_amount}")
-            executor.submit(trigger_and_capture, cam, cam_id, exp_time, running, delay_dict)
+            if cam_id == args.master:
+                executor.submit(trigger_and_capture, cam, cam_id, exp_time, running, delay_dict)
     cam_array.StopGrabbing()
     print(f"executor shutdown")
     executor.shutdown(wait=False)  # Stop the executor
@@ -311,7 +316,6 @@ def load_engine(args):
 
 def load_devices(args):
     tlf = py.TlFactory.GetInstance()
-    di = py.DeviceInfo()
     devs = tlf.EnumerateDevices()
     if len(devs) > 0:
         num_cams = len(devs)
@@ -338,8 +342,6 @@ def load_devices(args):
         return cam_array, num_cams
     else:
         print(f"No devices found")
-
-    
 
 def parse_args():
     parser = argparse.ArgumentParser()
