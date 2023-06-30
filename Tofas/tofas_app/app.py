@@ -3,6 +3,7 @@ from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
 from engine import engine_v2, engine_v3
+from engine.engine_v3 import list_devices
 import argparse
 import time
 
@@ -64,6 +65,9 @@ class Inovako(QtWidgets.QMainWindow):
         self.gray_thres = self.findChild(QtWidgets.QSpinBox, 'gray_thres')
         self.interval = self.findChild(QtWidgets.QDoubleSpinBox, 'interval')
         self.ins_time_widget = self.findChild(QtWidgets.QLabel, 'inspection_time')
+        self.master_select = self.findChild(QtWidgets.QComboBox, 'master_select')
+        self.master_select.addItems(list_devices(args))
+        self.master_select.currentIndexChanged.connect(self.master_selected)
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
@@ -76,6 +80,10 @@ class Inovako(QtWidgets.QMainWindow):
         self.ins_time_start = 0
         self.ins_time_stop = 0
     
+    def master_selected(self, cam_id):
+        print(f"master selected with cam id: {cam_id}")
+        args.master = cam_id
+
     def select_folder(self):
         current_directory = os.getcwd()
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder', current_directory)

@@ -196,10 +196,10 @@ font: 32px;</string>
    <widget class="QSpinBox" name="check_frequency">
     <property name="geometry">
      <rect>
-      <x>680</x>
+      <x>690</x>
       <y>280</y>
       <width>91</width>
-      <height>16</height>
+      <height>20</height>
      </rect>
     </property>
    </widget>
@@ -219,20 +219,20 @@ font: 32px;</string>
    <widget class="QSpinBox" name="gray_thres">
     <property name="geometry">
      <rect>
-      <x>680</x>
+      <x>690</x>
       <y>310</y>
       <width>91</width>
-      <height>16</height>
+      <height>20</height>
      </rect>
     </property>
    </widget>
    <widget class="QDoubleSpinBox" name="interval">
     <property name="geometry">
      <rect>
-      <x>680</x>
+      <x>690</x>
       <y>340</y>
       <width>91</width>
-      <height>16</height>
+      <height>20</height>
      </rect>
     </property>
     <property name="singleStep">
@@ -276,6 +276,16 @@ font: 32px;</string>
     </property>
     <property name="text">
      <string>Master Camera</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="master_select">
+    <property name="geometry">
+     <rect>
+      <x>690</x>
+      <y>250</y>
+      <width>91</width>
+      <height>21</height>
+     </rect>
     </property>
    </widget>
   </widget>
