@@ -50,7 +50,7 @@ font: 32px;</string>
      <rect>
       <x>560</x>
       <y>120</y>
-      <width>101</width>
+      <width>111</width>
       <height>21</height>
      </rect>
     </property>
@@ -255,7 +255,7 @@ font: 32px;</string>
    <widget class="QLabel" name="inspection_time">
     <property name="geometry">
      <rect>
-      <x>670</x>
+      <x>680</x>
       <y>120</y>
       <width>121</width>
       <height>21</height>
@@ -283,6 +283,52 @@ font: 32px;</string>
      <rect>
       <x>690</x>
       <y>250</y>
+      <width>91</width>
+      <height>21</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_6">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>460</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select Cam</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="filter_select">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>460</y>
+      <width>91</width>
+      <height>21</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label_7">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>490</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Select Exposure</string>
+    </property>
+   </widget>
+   <widget class="QComboBox" name="filter_select_expo">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>490</y>
       <width>91</width>
       <height>21</height>
      </rect>

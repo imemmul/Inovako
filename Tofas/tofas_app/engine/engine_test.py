@@ -1,6 +1,5 @@
 import pypylon.pylon as py
 import time
-import sys
 import cv2
 import numpy as np
 import torch
@@ -15,8 +14,10 @@ from multiprocessing import Queue, Process, set_start_method
 import os
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
+# OPTIMIZING run_inference with adding inference to a process for each cameras thread ??? THIS WILL BE TESTED 
+
 DEFAULT_EXPOSURE = 10000
-# TODO ProcessPoolExecutor
+
 
 def delete_files(args, limit):
     if len(os.listdir(args.out_dir)) > limit:
@@ -100,120 +101,17 @@ def part_detection(img, threshold):
     print(f"gray_value: {gray_value}, and {gray_value > threshold}")
     return gray_value > threshold
 
-def run_devices(cam_array, nums_cams, args):
-    """
-    this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
-    """
-    q = Queue()
-    p = Process(target=run_inference, args=(q, args, running)) # background listening
-    p.start()
-    cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
-    # Define a function to be run in each thread
-    def trigger_and_capture(cam, cam_id, running, delay_dict, capture_test):
-        capture_amount = 0
-        try:
-            while running.is_set():
-                # print(f"running ?: {running.is_set()}")
-                # print(f"i am trying cam: {cam_id}")
-                if capture_test.is_set():
-                    # print(f"i am running cam: {cam_id}")
-                    # for _ in range(1):
-                    exp_time = args.exposure_time[int(capture_amount % 2)]
-                    cam.ExposureTime.SetValue(int(exp_time))
-                    cam.ExecuteSoftwareTrigger()
-                    grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-                    # print(f"grabbed something")
-                    if grabResult.GrabSucceeded():
-                        print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
-                        img = grabResult.GetArray()
-                        # print(f"image put in queue")
-                        capture_amount += 1
-                        capture_time = time.time()
-                        q.put((img, cam_id, exp_time, capture_amount, capture_time))
-                        time.sleep(args.interval)
-                    delay_dict[cam_id] = time.time()
-                    # print(f"camera {cam_id} captured image in {time.time()}")
-            cam.Close()
-        except Exception as e:
-            print(f"some bugs in trigger_and_capture: {e}")
-        print(f"Thread with cam_id {cam_id} stopped")
-
-    delay_dict = {}
-    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
-        try:
-            for cam_id, cam in enumerate(cam_array):
-                # print(f"capture amount: {capture_amount}")
-                if cam_id != args.master:
-                    executor.submit(trigger_and_capture, cam, cam_id, running, delay_dict, capture_test)
-                else:
-                    print(f"master cam thread loaded")
-                    executor.submit(trigger_master, args, cam, cam_id, running, delay_dict, q, capture_test)
-        except Exception as e:
-            print(f"some error occured in thread pool: {e}")
-    cam_array.StopGrabbing()
-    print(f"executor shutdown")
-    executor.shutdown(wait=False)  # Stop the executor
-    print(f"executor shutdowned")
-    # Get the start times in a list
-    start_times = list(delay_dict.values())
-
-    # Sort the start times
-    start_times.sort()
-
-    # Calculate the delays
-    delays = [start_times[i] - start_times[i - 1] for i in range(1, len(start_times))]
-
-    # Print the delays
-    for i in range(len(delays)):
-        print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
-    if p.is_alive(): # If the process is still running, terminate it
-        p.terminate()
-    p.join()
-
-def trigger_master(args, cam, cam_id, running, delay_dict, q, capture_test):
-    try:
-        capture_amount = 0
-        while running.is_set():
-            # print(f"master is running")
-            exp_time = args.exposure_time[int(capture_amount % 2)]
-            cam.ExposureTime.SetValue(int(exp_time))
-            cam.ExecuteSoftwareTrigger()
-            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-            # print(f"grabbed something")
-            if grabResult.GrabSucceeded():
-                print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
-                img = grabResult.GetArray()
-                if part_detection(img, args.gray_thres):
-                    print(f"part detected running all other camereas")
-                    capture_test.set() # run other cameras
-                    capture_amount += 1
-                    capture_time = time.time()
-                    q.put((img, cam_id, exp_time, capture_amount, capture_time))
-                    time.sleep(args.interval)
-                else:
-                    print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
-                    capture_test.clear()
-                    time.sleep(args.check_interval)
-            else:
-                print(f"couldn't capture master")
-        delay_dict[cam_id] = time.time()
-        cam.Close()
-        print(f"Thread with cam_id {cam_id} stopped")
-    except Exception as e:
-        print(f"some error occured in trigger_master: {e}")
-        # print(f"camera {cam_id} captured image in {time.time()}")
-
 def run_devices_test(cam_array, nums_cams, args):
     """
     this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
     """
-    q = Queue()
-    p = Process(target=run_inference, args=(q, args, running))
-    p.start()
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
-    def trigger_master_test(args, cam, cam_id, running, delay_dict, q, capture_test):
+    def trigger_master_test(args, cam, cam_id, running, delay_dict, capture_test):
         try:
             capture_amount = 0
+            q = Queue()
+            p = Process(target=run_inference, args=(q, args, running))
+            p.start()
             while running.is_set():
                 print(f"master is running")
                 exp_time = args.exposure_time[int(capture_amount % 2)]
@@ -244,6 +142,9 @@ def run_devices_test(cam_array, nums_cams, args):
     def trigger_and_capture(cam, cam_id, running, delay_dict):
         capture_amount = 0
         try:
+            q = Queue()
+            p = Process(target=run_inference, args=(q, args, running))
+            p.start()
             while running.is_set():
                 if capture_test.is_set(): 
                     # for _ in range(1):
@@ -265,6 +166,9 @@ def run_devices_test(cam_array, nums_cams, args):
                     # print(f"camera {cam_id} captured image in {time.time()}")
             print(f"Thread with cam_id {cam_id} stopped")
             cam.Close()
+            if p.is_alive(): # If the process is still running, terminate it
+                p.terminate()
+            p.join()
         except Exception as e:
             print(f"some error in trigger_and_capture test: {e}")
     
@@ -278,7 +182,7 @@ def run_devices_test(cam_array, nums_cams, args):
                     executor.submit(trigger_and_capture, cam, cam_id, running, delay_dict)
                 else:
                     print(f"master cam thread loaded, master_cam_id: {cam_id}")
-                    executor.submit(trigger_master_test, args, cam, cam_id, running, delay_dict, q, capture_test)
+                    executor.submit(trigger_master_test, args, cam, cam_id, running, delay_dict, capture_test)
         except Exception as e:
             print(f"error in test thread pool: {e}")
     cam_array.StopGrabbing()
@@ -297,9 +201,9 @@ def run_devices_test(cam_array, nums_cams, args):
     # Print the delays
     for i in range(len(delays)):
         print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
-    if p.is_alive(): # If the process is still running, terminate it
-        p.terminate()
-    p.join()
+    # if p.is_alive(): # If the process is still running, terminate it
+    #     p.terminate()
+    # p.join()
 
 def load_engine(args):
     try:
@@ -361,20 +265,6 @@ def stop_engine():
     running.clear()
     print(f"stopped the engine")
 
-def run_engine(args):
-    if len(os.listdir(args.out_dir)) > 0:
-        for out in os.listdir(args.out_dir):
-            os.remove(f"{args.out_dir}{out}")
-        print(f"Deleted all files in out-dir")
-    global running
-    running = multiprocessing.Event()
-    running.set()
-    global capture_test
-    capture_test = multiprocessing.Event()
-    cam_array, num_cams = load_devices(args)
-    print(f"Devices are loaded, running")
-    run_devices(cam_array=cam_array, nums_cams=num_cams, args=args)
-
 def run_engine_test(args):
     # TODO run_this
     global running
@@ -399,12 +289,3 @@ def run_test(args):
             os.remove(f"{args.out_dir}{out}")
         print(f"Deleted all files in out-dir")
     run_engine_test(args)
-
-if __name__ == "__main__":
-    set_start_method('spawn') # this is temp
-    args = parse_args()
-    if args.test:
-        print(f"Running test")
-        run_test(args)
-    else:
-        run_engine(args)

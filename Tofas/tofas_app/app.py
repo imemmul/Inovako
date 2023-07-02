@@ -2,13 +2,13 @@ import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
-from engine import engine_v2, engine_v3
+from engine import engine_v2, engine_v3, engine_test
 from engine.engine_v3 import list_devices
 import argparse
 import time
 
-# TODO more communication between engines
-# TODO select one of the cameras and run grayish detection on it, if detected run inference for all cameras with args.interval interval.
+# TODO more communication between engines DONE
+# TODO select one of the cameras and run grayish detection on it, if detected run inference for all cameras with args.interval interval. DONE
 
 
 def parse_args():
@@ -35,12 +35,23 @@ class EngineThread(QThread):
             if args.test:
                 print(f"engine_v3 is running test")
                 time.sleep(1)
-                engine_v3.run_test(args)
+                engine_test.run_test(args)
             else:
                 engine_v3.run_engine(args)
         else:
             print(f"engine_v2 is running deployment")
             engine_v2.run_engine(args)
+    def stop_engine_thread(self):
+        if args.test_engine:
+            if args.test:
+                print(f"engine_v3 is running test")
+                time.sleep(1)
+                engine_test.stop_engine()
+            else:
+                engine_v3.stop_engine()
+        else:
+            print(f"engine_v2 is running deployment")
+            engine_v2.stop_engine()
 
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
@@ -68,6 +79,11 @@ class Inovako(QtWidgets.QMainWindow):
         self.master_select = self.findChild(QtWidgets.QComboBox, 'master_select')
         self.master_select.addItems(list_devices(args))
         self.master_select.currentIndexChanged.connect(self.master_selected)
+        self.filter_select_cam = self.findChild(QtWidgets.QComboBox, 'filter_select')
+        self.filter_select_expo = self.findChild(QtWidgets.QComboBox, 'filter_select_expo')
+        self.filter_select_cam.addItems(list_devices(args))
+        self.filter_select_expo = self.findChild(QtWidgets.QComboBox, 'filter_select_expo')
+
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
@@ -90,7 +106,7 @@ class Inovako(QtWidgets.QMainWindow):
 
         if folder:
             self.images = QDir(folder).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
-            self.images = [os.path.join(folder, img) for img in self.images]
+            self.images = [os.path.join(folder, img) for img in sorted(self.images)]
             self.index = 0
             self.display_image()
 
@@ -147,11 +163,8 @@ class Inovako(QtWidgets.QMainWindow):
     
     def stop_engine(self):
         if self.engineThread is not None:
-            if args.test_engine:
-                print(f"engine_v2 is running")
-                engine_v3.stop_engine()
-            else:
-                engine_v3.stop_engine()
+            print(f"engine_v2 is running")
+            self.engineThread.stop_engine_thread()
             self.engineThread.quit()
             self.engineThread.wait()
             self.engineThread = None
