@@ -74,7 +74,7 @@ font: 32px;</string>
      <property name="geometry">
       <rect>
        <x>0</x>
-       <y>10</y>
+       <y>30</y>
        <width>501</width>
        <height>301</height>
       </rect>
@@ -332,6 +332,19 @@ font: 32px;</string>
       <width>91</width>
       <height>21</height>
      </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="image_name">
+    <property name="geometry">
+     <rect>
+      <x>200</x>
+      <y>0</y>
+      <width>111</width>
+      <height>16</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string/>
     </property>
    </widget>
   </widget>

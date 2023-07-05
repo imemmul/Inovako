@@ -87,7 +87,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.filter_select_cam.addItems(list_devices(args))
         self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
         self.filter_select_expo.currentIndexChanged.connect(self.filter_selection_expo)
-
+        self.image_name = self.findChild(QtWidgets.QLabel, 'image_name')
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
@@ -114,16 +114,16 @@ class Inovako(QtWidgets.QMainWindow):
         run_id = len(os.listdir(args.out_dir))
         current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" + self.filter_select_expo.currentText() + "/NO_DET/"
         print(f"current dir {current_directory}")
-        folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder', current_directory)
-
-        if folder:
-            self.images = QDir(folder).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
-            self.images = [os.path.join(folder, img) for img in sorted(self.images)]
-            self.index = 0
-            self.display_image()
+        self.images = QDir(current_directory).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
+        self.images = [os.path.join(current_directory, img) for img in sorted(self.images)]
+        self.index = 0
+        self.display_image()
 
     def display_image(self):
         if self.images:
+            print(f"setting imagename : {self.images[self.index].split('/')}")
+            image_name = self.images[self.index].split('/')[-1]
+            self.image_name.setText(image_name)
             pixmap = QtGui.QPixmap(self.images[self.index])
             self.imageLabel.setPixmap(pixmap.scaled(self.imageLabel.size()))
 
