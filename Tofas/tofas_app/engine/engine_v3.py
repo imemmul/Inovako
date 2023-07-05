@@ -17,6 +17,8 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 DEFAULT_EXPOSURE = 10000
 # TODO ProcessPoolExecutor
+# TODO some optimizations needed
+
 
 def delete_files(args, limit):
     if len(os.listdir(args.out_dir)) > limit:
@@ -24,68 +26,71 @@ def delete_files(args, limit):
             os.remove(f"{args.out_dir}{out}")
         print(f"Deleted all files in out-dir")
 
-def run_inference(q:Queue, args, running):
+def run_inference(q:Queue, args, running, devices):
     try:
         engine, device, H, W  = load_engine(args)
+        run_id = len(os.listdir(args.out_dir))
+        if running.is_set() or q.qsize() > 0:
+            print(f"i should be in")
+        while running.is_set() or q.qsize() > 0:
+            try:
+                # count = len(os.listdir(args.out_dir))
+                # print(f"what is q_length = {q.qsize()}")
+                image, cam_id, exp_time, capture_id, capture_time = q.get()
+                print(f"image taken from cam: {cam_id}, processing")
+                # print(f"cam id {cam_id} captured in {capture_time}")
+                bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                draw = bgr.copy()
+                bgr, ratio, dwdh = letterbox(bgr, (W, H))
+                dw, dh = int(dwdh[0]), int(dwdh[1])
+                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                tensor, seg_img = blob(rgb, return_seg=True)
+                dwdh = torch.asarray(dwdh * 2, dtype=torch.float32, device=device)
+                tensor = torch.asarray(tensor, device=device)
+                data = engine(tensor)
+                seg_img = torch.asarray(seg_img[dh:H - dh, dw:W - dw, [2, 1, 0]],
+                                        device=device)
+                bboxes, scores, labels, masks = seg_postprocess(
+                    data, bgr.shape[:2], args.conf_thres, args.iou_thres)
+                
+                if len(bboxes) == 0:
+                    # print(f"trying to save no_det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/NO_DET/output_{capture_id}.jpg")
+                    cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/NO_DET/output_{capture_id}.jpg", img=draw)
+                    print(f"nothing detected")
+                else:
+                    masks = masks[:, dh:H - dh, dw:W - dw, :]
+                    indices = (labels % len(MASK_COLORS)).long()
+                    mask_colors = torch.asarray(MASK_COLORS, device=device)[indices]
+                    mask_colors = mask_colors.view(-1, 1, 1, 3) * ALPHA
+                    mask_colors = masks @ mask_colors
+                    inv_alph_masks = (1 - masks * 0.5).cumprod(0)
+                    mcs = (mask_colors * inv_alph_masks).sum(0) * 2
+                    seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
+                    draw = cv2.resize(seg_img.cpu().numpy().astype(np.uint8),
+                                    draw.shape[:2][::-1])
+
+                    bboxes -= dwdh
+                    bboxes /= ratio
+
+                    for (bbox, score, label) in zip(bboxes, scores, labels):
+                        bbox = bbox.round().int().tolist()
+                        cls_id = int(label)
+                        cls = CLASSES[cls_id]
+                        color = COLORS[cls]
+                        cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
+                        cv2.putText(draw,
+                                    f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    0.75, [225, 255, 255],
+                                    thickness=2)
+                    # print(f"image saved")
+                    print(f"trying to save det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg")
+                    #cv2.imwrite(filename=f"{args.out_dir}/run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}_{count}.jpg", img=draw)
+            except Exception as e:
+                print(f"Some error occured in run_inference: {e}")
     except Exception as e:
-        print(f"Failed to load engine: {e}")
-        return
-    while running.is_set() or q.qsize() > 0:
-        try:
-            delete_files(args, limit=200) # TODO DELETE THIS BEFORE DEPLOYMENT
-            count = len(os.listdir(args.out_dir))
-            # print(f"what is q_length = {q.qsize()}")
-            image, cam_id, exp_time, capture_id, capture_time = q.get()
-            # print(f"cam id {cam_id} captured in {capture_time}")
-            bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            draw = bgr.copy()
-            bgr, ratio, dwdh = letterbox(bgr, (W, H))
-            dw, dh = int(dwdh[0]), int(dwdh[1])
-            rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            tensor, seg_img = blob(rgb, return_seg=True)
-            dwdh = torch.asarray(dwdh * 2, dtype=torch.float32, device=device)
-            tensor = torch.asarray(tensor, device=device)
-            # inference
-            # print(f"tensor: {tensor.device}")
-            data = engine(tensor)
-            seg_img = torch.asarray(seg_img[dh:H - dh, dw:W - dw, [2, 1, 0]],
-                                    device=device)
-            bboxes, scores, labels, masks = seg_postprocess(
-                data, bgr.shape[:2], args.conf_thres, args.iou_thres)
-            
-            if len(bboxes) == 0:
-                print(f"nothing detected")
-            else:
-                masks = masks[:, dh:H - dh, dw:W - dw, :]
-                indices = (labels % len(MASK_COLORS)).long()
-                mask_colors = torch.asarray(MASK_COLORS, device=device)[indices]
-                mask_colors = mask_colors.view(-1, 1, 1, 3) * ALPHA
-                mask_colors = masks @ mask_colors
-                inv_alph_masks = (1 - masks * 0.5).cumprod(0)
-                mcs = (mask_colors * inv_alph_masks).sum(0) * 2
-                seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
-                draw = cv2.resize(seg_img.cpu().numpy().astype(np.uint8),
-                                draw.shape[:2][::-1])
-
-                bboxes -= dwdh
-                bboxes /= ratio
-
-                for (bbox, score, label) in zip(bboxes, scores, labels):
-                    bbox = bbox.round().int().tolist()
-                    cls_id = int(label)
-                    cls = CLASSES[cls_id]
-                    color = COLORS[cls]
-                    cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
-                    cv2.putText(draw,
-                                f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2),
-                                cv2.FONT_HERSHEY_SIMPLEX,
-                                0.75, [225, 255, 255],
-                                thickness=2)
-                count += 1
-                # print(f"image saved")
-                cv2.imwrite(filename=f"{args.out_dir}output_{count}_{capture_id}_{cam_id}_{exp_time}.jpg", img=draw)
-        except Exception as e:
-            print(f"Some error occured in run_inference: {e}")
+        print(f"Error in inference: {e}")
+    print("stopping inference")
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
@@ -105,7 +110,8 @@ def run_devices(cam_array, nums_cams, args):
     this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
     """
     q = Queue()
-    p = Process(target=run_inference, args=(q, args, running)) # background listening
+    print("RUNNING INFERENCE")
+    p = Process(target=run_inference, args=(q, args, running, list_devices(args))) # background listening
     p.start()
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
     # Define a function to be run in each thread
@@ -147,11 +153,14 @@ def run_devices(cam_array, nums_cams, args):
                     executor.submit(trigger_and_capture, cam, cam_id, running, delay_dict, capture_test)
                 else:
                     print(f"master cam thread loaded")
-                    executor.submit(trigger_master, args, cam, cam_id, running, delay_dict, q, capture_test)
+                    executor.submit(trigger_master, args, cam, cam_id, running, q, delay_dict, capture_test)
         except Exception as e:
             print(f"some error occured in thread pool: {e}")
     cam_array.StopGrabbing()
     print(f"executor shutdown")
+    if p.is_alive(): # If the process is still running, terminate it
+        p.terminate()
+    p.join()
     executor.shutdown(wait=False)  # Stop the executor
     print(f"executor shutdowned")
     # Get the start times in a list
@@ -166,11 +175,8 @@ def run_devices(cam_array, nums_cams, args):
     # Print the delays
     for i in range(len(delays)):
         print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
-    if p.is_alive(): # If the process is still running, terminate it
-        p.terminate()
-    p.join()
 
-def trigger_master(args, cam, cam_id, running, delay_dict, q, capture_test):
+def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_test):
     try:
         capture_amount = 0
         while running.is_set():
@@ -202,104 +208,6 @@ def trigger_master(args, cam, cam_id, running, delay_dict, q, capture_test):
     except Exception as e:
         print(f"some error occured in trigger_master: {e}")
         # print(f"camera {cam_id} captured image in {time.time()}")
-
-def run_devices_test(cam_array, nums_cams, args):
-    """
-    this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
-    """
-    q = Queue()
-    p = Process(target=run_inference, args=(q, args, running))
-    p.start()
-    cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
-    def trigger_master_test(args, cam, cam_id, running, delay_dict, q, capture_test):
-        try:
-            capture_amount = 0
-            while running.is_set():
-                print(f"master is running")
-                exp_time = args.exposure_time[int(capture_amount % 2)]
-                cam.ExposureTime.SetValue(int(exp_time))
-                cam.ExecuteSoftwareTrigger()
-                grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-                if True:
-                    print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
-                    img = grabResult
-                    if part_detection(img, args.gray_thres):
-                        print(f"part detected running all other camereas")
-                        capture_test.set() # run other cameras
-                        capture_amount += 1
-                        capture_time = time.time()
-                        q.put((img, cam_id, exp_time, capture_amount, capture_time))
-                        time.sleep(args.interval)
-                    else:
-                        print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
-                        capture_test.clear()
-                        time.sleep(args.check_interval)
-            delay_dict[cam_id] = time.time()
-            cam.Close()
-            print(f"Thread with cam_id {cam_id} stopped")
-        except Exception as e:
-            print(f"some error occured in trigger_master test: {e}")
-            # print(f"camera {cam_id} captured image in {time.time()}")
-    # Define a function to be run in each thread
-    def trigger_and_capture(cam, cam_id, running, delay_dict):
-        capture_amount = 0
-        try:
-            while running.is_set():
-                if capture_test.is_set(): 
-                    # for _ in range(1):
-                    print(f"i am running cam: {cam_id}")
-                    exp_time = args.exposure_time[int(capture_amount % 2)]
-                    cam.ExposureTime.SetValue(int(exp_time))
-                    cam.ExecuteSoftwareTrigger()
-                    grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-                    # print(f"grabbed something")
-                    if True:
-                        print(f"image captured from cam:{cam_id} with exp_time: {exp_time}")
-                        img = grabResult
-                        print(f"image put in queue")
-                        capture_amount += 1
-                        capture_time = time.time()
-                        q.put((img, cam_id, exp_time, capture_amount, capture_time))
-                        time.sleep(args.interval)
-                    delay_dict[cam_id] = time.time()
-                    # print(f"camera {cam_id} captured image in {time.time()}")
-            print(f"Thread with cam_id {cam_id} stopped")
-            cam.Close()
-        except Exception as e:
-            print(f"some error in trigger_and_capture test: {e}")
-    
-
-    delay_dict = {}
-    with ThreadPoolExecutor(max_workers=nums_cams) as executor:
-        try:
-            for cam_id, cam in enumerate(cam_array):
-                    # print(f"capture amount: {capture_amount}")
-                if cam_id != args.master:
-                    executor.submit(trigger_and_capture, cam, cam_id, running, delay_dict)
-                else:
-                    print(f"master cam thread loaded, master_cam_id: {cam_id}")
-                    executor.submit(trigger_master_test, args, cam, cam_id, running, delay_dict, q, capture_test)
-        except Exception as e:
-            print(f"error in test thread pool: {e}")
-    cam_array.StopGrabbing()
-    print(f"executor shutdown")
-    executor.shutdown(wait=False)  # Stop the executor
-    print(f"executor shutdowned")
-    # Get the start times in a list
-    start_times = list(delay_dict.values())
-
-    # Sort the start times
-    start_times.sort()
-
-    # Calculate the delays
-    delays = [start_times[i] - start_times[i - 1] for i in range(1, len(start_times))]
-
-    # Print the delays
-    for i in range(len(delays)):
-        print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
-    if p.is_alive(): # If the process is still running, terminate it
-        p.terminate()
-    p.join()
 
 def load_engine(args):
     try:
@@ -362,10 +270,10 @@ def stop_engine():
     print(f"stopped the engine")
 
 def run_engine(args):
-    if len(os.listdir(args.out_dir)) > 0:
-        for out in os.listdir(args.out_dir):
-            os.remove(f"{args.out_dir}{out}")
-        print(f"Deleted all files in out-dir")
+    # if len(os.listdir(args.out_dir)) > 0:
+    #     for out in os.listdir(args.out_dir):
+    #         os.remove(f"{args.out_dir}{out}")
+    #     print(f"Deleted all files in out-dir")
     global running
     running = multiprocessing.Event()
     running.set()
@@ -375,36 +283,21 @@ def run_engine(args):
     print(f"Devices are loaded, running")
     run_devices(cam_array=cam_array, nums_cams=num_cams, args=args)
 
-def run_engine_test(args):
-    # TODO run_this
-    global running
-    running = multiprocessing.Event()
-    running.set()
-    global capture_test
-    capture_test = multiprocessing.Event()
-    cam_array = MockCameraArray(8)
-    print(f"Test Devices are loaded, running")
-    run_devices_test(cam_array=cam_array, nums_cams=8, args=args)
-
 def list_devices(args):
-    if args.test:
-        return [str(i) for i in range(8)]
-    else:
-        devs = py.TlFactory.GetInstance().EnumerateDevices()
-        return [device.GetFriendlyName() for device in devs] 
-
-def run_test(args):
-    if len(os.listdir(args.out_dir)) > 0:
-        for out in os.listdir(args.out_dir):
-            os.remove(f"{args.out_dir}{out}")
-        print(f"Deleted all files in out-dir")
-    run_engine_test(args)
+    try:
+        if args.test:
+            return [str(i) for i in range(8)]
+        else:
+            devs = py.TlFactory.GetInstance().EnumerateDevices()
+            return [device.GetFriendlyName() for device in devs]
+    except Exception as e:
+        print(f"Error in list_devices")
 
 if __name__ == "__main__":
     set_start_method('spawn') # this is temp
     args = parse_args()
     if args.test:
         print(f"Running test")
-        run_test(args)
+        run_engine(args)
     else:
         run_engine(args)

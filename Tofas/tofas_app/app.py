@@ -4,6 +4,7 @@ from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
 from engine import engine_v2, engine_v3, engine_test
 from engine.engine_v3 import list_devices
+from engine.categorize import categorize_create_folder
 import argparse
 import time
 
@@ -24,6 +25,8 @@ def parse_args():
     parser.add_argument('--check-interval', type=int, default=5)
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--test-engine', action="store_true")
+    parser.add_argument('--filter-cam', type=str)
+    parser.add_argument('--filter-expo', type=str)
     parser.add_argument('--master', type=int, default=1)
     args = parser.parse_args()
     return args
@@ -82,7 +85,8 @@ class Inovako(QtWidgets.QMainWindow):
         self.filter_select_cam = self.findChild(QtWidgets.QComboBox, 'filter_select')
         self.filter_select_expo = self.findChild(QtWidgets.QComboBox, 'filter_select_expo')
         self.filter_select_cam.addItems(list_devices(args))
-        self.filter_select_expo = self.findChild(QtWidgets.QComboBox, 'filter_select_expo')
+        self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
+        self.filter_select_expo.currentIndexChanged.connect(self.filter_selection_expo)
 
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
@@ -96,12 +100,20 @@ class Inovako(QtWidgets.QMainWindow):
         self.ins_time_start = 0
         self.ins_time_stop = 0
     
+    def filter_selection_cam(self, cam_id):
+        args.filter_cam = list_devices(args)[cam_id]
+    
+    def filter_selection_expo(self, cam_id):
+        args.filter_expo = args.exposure_time[cam_id]
+
     def master_selected(self, cam_id):
         print(f"master selected with cam id: {cam_id}")
         args.master = cam_id
 
     def select_folder(self):
-        current_directory = os.getcwd()
+        run_id = len(os.listdir(args.out_dir))
+        current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" + self.filter_select_expo.currentText() + "/NO_DET/"
+        print(f"current dir {current_directory}")
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select Folder', current_directory)
 
         if folder:
@@ -140,6 +152,8 @@ class Inovako(QtWidgets.QMainWindow):
                 self.ins_time_stop = time.time()
                 self.stop_engine()
             else:
+                categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposures=exposure_list)
+                self.filter_select_expo.addItems(map(str, args.exposure_time))
                 self.ins_time_start = time.time()
                 self.start_engine()
         else:
@@ -163,7 +177,7 @@ class Inovako(QtWidgets.QMainWindow):
     
     def stop_engine(self):
         if self.engineThread is not None:
-            print(f"engine_v2 is running")
+            print(f"engine_v3 is stopping")
             self.engineThread.stop_engine_thread()
             self.engineThread.quit()
             self.engineThread.wait()
