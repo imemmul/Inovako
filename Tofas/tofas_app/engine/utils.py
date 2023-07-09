@@ -2,7 +2,7 @@ import cv2
 import os
 
 TEST_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/engine/mock_images/"
-
+DET_CLASSES = ["DET", "NO_DET"]
 class MockCameraArray:
     def __init__(self, num_cams):
         self.cameras = [MockInstantCamera(id=i) for i in range(num_cams)]
@@ -84,3 +84,12 @@ class MockDeviceInfo:
 
     def GetSerialNumber(self):
         return self.serial_number
+
+def count_images(args):
+    run_id = len(os.listdir(args.out_dir))
+    path = args.out_dir + f"run_{run_id}/"
+    for cam_p in os.listdir(path):
+        for exp in args.exposure_time:
+            for d in DET_CLASSES:
+                ori_p = os.path.join(os.path.join(os.path.join(path, cam_p), str(exp)), d)
+                print(f"Cam: {cam_p} captured {len(os.listdir(ori_p))} images with exp: {exp}")

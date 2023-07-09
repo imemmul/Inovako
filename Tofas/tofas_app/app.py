@@ -2,19 +2,20 @@ import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
-from engine import engine_v2, engine_v3, engine_test
-from engine.engine_v3 import list_devices
+from engine import engine_v3_parallel, engine_v3_single, engine_v3_grouping
+from engine.engine_v3_single import list_devices
 from engine.categorize import categorize_create_folder
 import argparse
 import time
+import sys
 
 # TODO more communication between engines DONE
 # TODO select one of the cameras and run grayish detection on it, if detected run inference for all cameras with args.interval interval. DONE
-
-
+# TODO device opened by other client error handlers (pop message notifi)
+# TODO parallel inference
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/TOFAS/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
@@ -28,33 +29,36 @@ def parse_args():
     parser.add_argument('--filter-cam', type=str)
     parser.add_argument('--filter-expo', type=str)
     parser.add_argument('--master', type=int, default=1)
+    parser.add_argument('--group-size', type=int, default=2)
     args = parser.parse_args()
     return args
 args = parse_args()
 
+
+# TODO more clearer EngineThread
 class EngineThread(QThread):
     def run(self):
         if args.test_engine:
             if args.test:
                 print(f"engine_v3 is running test")
                 time.sleep(1)
-                engine_test.run_test(args)
+                #engine_v3_parallel.run_test(args)
             else:
-                engine_v3.run_engine(args)
+                engine_v3_parallel.run_engine(args)
         else:
             print(f"engine_v2 is running deployment")
-            engine_v2.run_engine(args)
+            engine_v3_grouping.run_engine(args)
     def stop_engine_thread(self):
         if args.test_engine:
             if args.test:
                 print(f"engine_v3 is running test")
                 time.sleep(1)
-                engine_test.stop_engine()
+                #engine_test.stop_engine()
             else:
-                engine_v3.stop_engine()
+                engine_v3_parallel.stop_engine()
         else:
             print(f"engine_v2 is running deployment")
-            engine_v2.stop_engine()
+            engine_v3_single.stop_engine()
 
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
@@ -112,7 +116,7 @@ class Inovako(QtWidgets.QMainWindow):
 
     def select_folder(self):
         run_id = len(os.listdir(args.out_dir))
-        current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" + self.filter_select_expo.currentText() + "/NO_DET/"
+        current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" + self.filter_select_expo.currentText() + "/DET/"
         print(f"current dir {current_directory}")
         self.images = QDir(current_directory).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
         self.images = [os.path.join(current_directory, img) for img in sorted(self.images)]
@@ -153,12 +157,15 @@ class Inovako(QtWidgets.QMainWindow):
                 self.stop_engine()
             else:
                 categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposures=exposure_list)
+                self.filter_select_expo.clear()
                 self.filter_select_expo.addItems(map(str, args.exposure_time))
                 self.ins_time_start = time.time()
                 self.start_engine()
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Valid Range of Exposure Times')
 
+    def pop_up_message(self, error_name, error_text):
+        QMessageBox.information(self, error_name, error_text)
 
     def start_engine(self):
         self.engine_running = True
@@ -191,13 +198,13 @@ class Inovako(QtWidgets.QMainWindow):
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
 
-if __name__ == "__main__":
-    import sys
+def pop_up_call(error_name, error_text):
+    window.pop_up_message(error_name, error_text)
 
-    app = QtWidgets.QApplication(sys.argv)
 
-    window = Inovako()
-    window.show()
+app = QtWidgets.QApplication(sys.argv)
 
-    sys.exit(app.exec())
+window = Inovako()
+window.show()
 
+sys.exit(app.exec())

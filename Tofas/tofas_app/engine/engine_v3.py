@@ -110,7 +110,6 @@ def run_devices(cam_array, nums_cams, args):
     this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
     """
     q = Queue()
-    print("RUNNING INFERENCE")
     p = Process(target=run_inference, args=(q, args, running, list_devices(args))) # background listening
     p.start()
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??

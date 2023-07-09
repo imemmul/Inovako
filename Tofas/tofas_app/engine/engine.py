@@ -62,9 +62,9 @@ def run_inference(q:Queue, args, running):
                 color = COLORS[cls]
                 cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
                 cv2.putText(draw, f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2), cv2.FONT_HERSHEY_SIMPLEX, 0.75, [225, 255, 255], thickness=2)
-            count += 1
-            print(f"image saved")
-            cv2.imwrite(filename=f"{args.out_dir}output_{count}_{cam_id}_{exp_time}.jpg", img=draw)
+        count += 1
+        print(f"image saved")
+        cv2.imwrite(filename=f"{args.out_dir}output_{count}_{cam_id}_{exp_time}.jpg", img=image)
             # time.sleep(1) # checks if multi-processing works ?
 
 def part_detection(img, threshold):
@@ -89,7 +89,7 @@ def run_devices(cam_array, nums_cams, args):
         for cam_id, cam in enumerate(cam_array):
             start_time = time.time()
             cam.ExecuteSoftwareTrigger()
-            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+            grabResult = cam.RetrieveResult(100, py.TimeoutHandling_ThrowException)
             # print(f"cam exposureTime: {cam.ExposureTime}")
             if grabResult.GrabSucceeded():
                 # Access the image data
@@ -107,7 +107,7 @@ def run_devices(cam_array, nums_cams, args):
                     time.sleep(args.check_interval)
             end_time = time.time()
             delay = end_time - start_time
-            print(f"delay between cameras: {delay}")
+            print(f"delay between cameras: {delay - args.interval}")
     cam_array.StopGrabbing()
     p.terminate()
     q.put(None)  # signal the inference process to end
