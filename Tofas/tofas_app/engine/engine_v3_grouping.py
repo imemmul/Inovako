@@ -26,17 +26,47 @@ DEFAULT_EXPOSURE = 10000
 # TODO design of seperating the functions for master and the others is faulty, no need to do that, a simple Cam class might be better
 
 class BaslerCamera():
-    pass
+    def __init__(self, cam:py.InstantCamera, is_master, cam_id) -> None:
+        self.cam = cam
+        self.cam_id = cam_id
+        self.is_master = is_master
 
 class BaslerCameraArray():
-    def __init__(self, num_cams) -> None:
+    def __init__(self, num_cams, master_id) -> None:
         self.tlf_object = py.TlFactory.GetInstance()
         self.cam_array = py.InstantCameraArray(num_cams)
+        self.baslercam_array = []
+        self.master_id = master_id
         self.devs = self.tlf_object.EnumerateDevices()
-    def init_array(self):
+    def init_array(self, h, w, fps):
         for idx, cam in enumerate(self.cam_array):
             cam.Attach(self.tlf_object.CreateDevice(self.devs[idx]))
-
+        self.cam_array.Open()
+        self.configure_cams(h=h, w=w, fps=fps)
+        return self.cam_array
+    def configure_cams(self, h, w, fps):
+        for idx, cam in enumerate(self.cam_array):
+            camera_serial = cam.DeviceInfo.GetSerialNumber()
+            print(f"set context {idx} for camera {camera_serial}")
+            cam.SetCameraContext(idx)
+            cam.ExposureTime.SetValue(DEFAULT_EXPOSURE)
+            cam.PixelFormat.SetValue('Mono8')
+            #cam.Width.SetValue(2600)
+            #cam.Height.SetValue(2128)
+            cam.Width.SetValue(w)
+            cam.Height.SetValue(h)
+            cam.TriggerSelector = "FrameStart"
+            cam.TriggerMode.SetValue('On')
+            cam.TriggerSource.SetValue('Software')
+            # below 3 lines run the flashes on cameras TODO what to do here ?
+            cam.Gamma.SetValue(0.7)
+            cam.LineSelector.SetValue("Line2")
+            cam.LineMode.SetValue("Output")
+            cam.LineSource.SetValue("ExposureActive")
+            cam.AcquisitionFrameRateEnable.SetValue(True)
+            cam.AcquisitionFrameRate.SetValue(fps)
+            cam.LineInverter.SetValue(True)
+            self.baslercam_array.append(BaslerCamera(cam=cam, is_master=(idx==self.master_id), cam_id=idx))
         
 
 def delete_files(args, limit):
@@ -126,16 +156,12 @@ def part_detection(img, threshold):
     print(f"gray_value: {gray_value}, and {gray_value > threshold}")
     return gray_value > threshold
 
-def run_devices(cam_array, nums_cams, args):
-    """
-    this function stands for the testing 8 multiple cameras without 8 devices. ONLY FOR TEST PURPOSES
-    """
-    cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly) # ??
+def run_devices(cam_group, nums_cams, args):
     # Define a function to be run in each thread
     delay_dict = {}
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
         try:
-            for cam_id, cam in enumerate(cam_array):
+            for cam_id, cam in enumerate(cam_group):
                 # print(f"capture amount: {capture_amount}")
                 if cam_id != args.master:
                     executor.submit(trigger_and_capture, cam, cam_id, running, delay_dict, capture_test) # runs other 7 
@@ -144,7 +170,6 @@ def run_devices(cam_array, nums_cams, args):
                     executor.submit(trigger_master, args, cam, cam_id, running, delay_dict, capture_test)
         except Exception as e:
             print(f"some error occured in thread pool: {e}")
-    cam_array.StopGrabbing()
     print(f"executor shutdown")
     executor.shutdown(wait=False)  # Stop the executor
     print(f"executor shutdowned")
@@ -259,36 +284,10 @@ def load_devices(args):
     if len(devs) > 0:
         num_cams = len(devs)
         print(f"num cams: {num_cams}")
-        cam_array = BaslerCameraArray(num_cams=num_cams, master_id=args.master)
-        cam_array.attach_all(devs)
-        cam_array.open_all()
-        # cam_array = py.InstantCameraArray(num_cams)
-        # for idx, cam in enumerate(cam_array):
-        #     cam.Attach(tlf.CreateDevice(devs[idx]))
-        # cam_array.Open()
-        # for idx, cam in enumerate(cam_array):
-        #     camera_serial = cam.DeviceInfo.GetSerialNumber()
-        #     print(f"set context {idx} for camera {camera_serial}")
-        #     cam.SetCameraContext(idx)
-        #     cam.ExposureTime.SetValue(DEFAULT_EXPOSURE)
-        #     cam.PixelFormat.SetValue('Mono8')
-        #     #cam.Width.SetValue(2600)
-        #     #cam.Height.SetValue(2128)
-        #     cam.Width.SetValue(2600)
-        #     cam.Height.SetValue(2128)
-        #     cam.TriggerSelector = "FrameStart"
-        #     cam.TriggerMode.SetValue('On')
-        #     cam.TriggerSource.SetValue('Software')
-        #     # below 3 lines run the flashes on cameras TODO what to do here ?
-        #     cam.Gamma.SetValue(0.7)
-        #     cam.LineSelector.SetValue("Line2")
-        #     cam.LineMode.SetValue("Output")
-        #     cam.LineSource.SetValue("ExposureActive")
-        #     cam.AcquisitionFrameRateEnable.SetValue(True)
-        #     cam.AcquisitionFrameRate.SetValue(60.0)
-        #     cam.LineInverter.SetValue(True)
+        bca = BaslerCameraArray(num_cams=num_cams, master_id=args.master)
+        cam_array = bca.init_array(h=2128, w=2600, fps=60)
         print(type(cam_array))
-        return cam_array, num_cams
+        return bca, cam_array, num_cams
     else:
         print(f"No devices found")
     # except Exception as e:
@@ -330,11 +329,18 @@ def run_engine(args):
     running.set()
     global capture_test
     capture_test = multiprocessing.Event()
-    cam_array, num_cams = load_devices(args)
+    bca, cam_array, num_cams = load_devices(args)
     cam_groups = grouper(args.group_size, cam_array)
     print(f"Devices are loaded, running")
-    run_devices(cam_array=cam_array, nums_cams=num_cams, args=args)
-
+    cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
+    with ThreadPoolExecutor(max_workers=len(cam_groups)) as executor:
+        for group in cam_groups:
+            run_devices(cam_group=group, nums_cams=num_cams, args=args)
+    
+    cam_array.StopGrabbing()
+    executor.shutdown(wait=False)  # Stop the executor
+    print(f"executor shutdowned, grouping")
+    # Get the start times in a list
 def list_devices(args):
     try:
         if args.test:

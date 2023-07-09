@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
-    parser.add_argument('--exposure-time', type=list, default=[10000, 50000])
+    parser.add_argument('--exposure-time', type=int, default=850)
     parser.add_argument('--conf-thres', type=float, default=0.25)
     parser.add_argument('--iou-thres', type=float, default=0.65)
     parser.add_argument('--interval', type=float, default=0.1)
@@ -78,7 +78,6 @@ class Inovako(QtWidgets.QMainWindow):
         self.folderButton = self.findChild(QtWidgets.QPushButton, 'pushButton_sec')
         self.buttonStart = self.findChild(QtWidgets.QPushButton, "pushButton_baslat")
         self.exposure_time = self.findChild(QtWidgets.QSpinBox, 'exposure_time')
-        self.exposure_time_2 = self.findChild(QtWidgets.QSpinBox, 'exposure_time_2')
         self.check_freq = self.findChild(QtWidgets.QSpinBox, 'check_frequency')
         self.gray_thres = self.findChild(QtWidgets.QSpinBox, 'gray_thres')
         self.interval = self.findChild(QtWidgets.QDoubleSpinBox, 'interval')
@@ -98,7 +97,6 @@ class Inovako(QtWidgets.QMainWindow):
         self.folderButton.clicked.connect(self.select_folder)
         self.buttonStart.clicked.connect(self.start_stop_engine)
         self.exposure_time.setMaximum(1000000)
-        self.exposure_time_2.setMaximum(1000000)
         self.engine_running = False
         self.engineThread = None
         self.ins_time_start = 0
@@ -145,24 +143,23 @@ class Inovako(QtWidgets.QMainWindow):
         if self.check_freq.value() != 0:
             args.check_interval = self.check_freq.value()
         # print(f"check interval set to {int(args.check_interval)}")
-        exposure_list = [int(self.exposure_time.value()), int(self.exposure_time_2.value())]
         args.gray_thres = self.gray_thres.value()
         args.interval = self.interval.value()
         # print(f"gray_thres : {args.gray_thres}")
-        if 0 not in exposure_list:
-            args.exposure_time = exposure_list
+        if self.exposure_time.value() != 0:
+            args.exposure_time = self.exposure_time.value()
             # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
                 self.ins_time_stop = time.time()
                 self.stop_engine()
             else:
-                categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposures=exposure_list)
+                categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposures=args.exposure_time)
                 self.filter_select_expo.clear()
                 self.filter_select_expo.addItems(map(str, args.exposure_time))
                 self.ins_time_start = time.time()
                 self.start_engine()
         else:
-            QMessageBox.information(self, 'Exposure Error', 'Please Enter Valid Range of Exposure Times')
+            QMessageBox.information(self, 'Exposure Error', 'Please Enter Exposure Time')
 
     def pop_up_message(self, error_name, error_text):
         QMessageBox.information(self, error_name, error_text)

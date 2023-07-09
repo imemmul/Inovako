@@ -90,21 +90,8 @@ font: 32px;</string>
    <widget class="QSpinBox" name="exposure_time">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>190</y>
-      <width>91</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="singleStep">
-     <number>100</number>
-    </property>
-   </widget>
-   <widget class="QSpinBox" name="exposure_time_2">
-    <property name="geometry">
-     <rect>
       <x>890</x>
-      <y>190</y>
+      <y>180</y>
       <width>91</width>
       <height>23</height>
      </rect>
@@ -116,8 +103,8 @@ font: 32px;</string>
    <widget class="QLabel" name="label">
     <property name="geometry">
      <rect>
-      <x>830</x>
-      <y>160</y>
+      <x>760</x>
+      <y>180</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -129,8 +116,8 @@ font: 32px;</string>
    <widget class="QLabel" name="label_2">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>280</y>
+      <x>760</x>
+      <y>240</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -142,8 +129,8 @@ font: 32px;</string>
    <widget class="QSpinBox" name="check_frequency">
     <property name="geometry">
      <rect>
-      <x>900</x>
-      <y>280</y>
+      <x>890</x>
+      <y>240</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -152,8 +139,8 @@ font: 32px;</string>
    <widget class="QLabel" name="label_3">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>310</y>
+      <x>760</x>
+      <y>270</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -165,8 +152,8 @@ font: 32px;</string>
    <widget class="QSpinBox" name="gray_thres">
     <property name="geometry">
      <rect>
-      <x>900</x>
-      <y>310</y>
+      <x>890</x>
+      <y>270</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -175,8 +162,8 @@ font: 32px;</string>
    <widget class="QDoubleSpinBox" name="interval">
     <property name="geometry">
      <rect>
-      <x>900</x>
-      <y>340</y>
+      <x>890</x>
+      <y>300</y>
       <width>91</width>
       <height>20</height>
      </rect>
@@ -188,8 +175,8 @@ font: 32px;</string>
    <widget class="QLabel" name="label_4">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>340</y>
+      <x>760</x>
+      <y>300</y>
       <width>121</width>
       <height>16</height>
      </rect>
@@ -214,8 +201,8 @@ font: 32px;</string>
    <widget class="QLabel" name="label_5">
     <property name="geometry">
      <rect>
-      <x>770</x>
-      <y>250</y>
+      <x>760</x>
+      <y>210</y>
       <width>111</width>
       <height>16</height>
      </rect>
@@ -227,8 +214,8 @@ font: 32px;</string>
    <widget class="QComboBox" name="master_select">
     <property name="geometry">
      <rect>
-      <x>900</x>
-      <y>250</y>
+      <x>890</x>
+      <y>210</y>
       <width>91</width>
       <height>21</height>
      </rect>

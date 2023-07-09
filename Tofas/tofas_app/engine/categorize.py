@@ -5,7 +5,7 @@ CATEG_DET = ['DET', 'NO_DET']
 
 out_dir = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/output/"
 
-def categorize_create_folder(out_dir, cams_name, exposures):
+def categorize_create_folder(out_dir, cams_name, exposure):
     paths = []
     selected_path = ''
     if os.path.exists(out_dir):
@@ -22,7 +22,7 @@ def categorize_create_folder(out_dir, cams_name, exposures):
         print(f"creating path: {path}")
         if not os.path.exists(path):
             os.makedirs(path)
-        for exp in exposures:
+        for exp in list(exposure):
             exp = str(exp)
             if not os.path.exists(path):
                 os.makedirs(os.path.join(path, exp))
