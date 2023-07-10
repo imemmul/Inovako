@@ -89,7 +89,6 @@ def count_images(args):
     run_id = len(os.listdir(args.out_dir))
     path = args.out_dir + f"run_{run_id}/"
     for cam_p in os.listdir(path):
-        for exp in args.exposure_time:
-            for d in DET_CLASSES:
-                ori_p = os.path.join(os.path.join(os.path.join(path, cam_p), str(exp)), d)
-                print(f"Cam: {cam_p} captured {len(os.listdir(ori_p))} images with exp: {exp}")
+        for d in DET_CLASSES:
+            ori_p = os.path.join(os.path.join(os.path.join(path, cam_p), str(args.exposure_time)), d)
+            print(f"Cam: {cam_p} captured {len(os.listdir(ori_p))} images with exp: {args.exposure_time}")

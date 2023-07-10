@@ -22,9 +22,8 @@ def categorize_create_folder(out_dir, cams_name, exposure):
         print(f"creating path: {path}")
         if not os.path.exists(path):
             os.makedirs(path)
-        for exp in list(exposure):
-            exp = str(exp)
-            if not os.path.exists(path):
-                os.makedirs(os.path.join(path, exp))
-            for cat in CATEG_DET:
-                os.makedirs(os.path.join(os.path.join(path, exp), cat))
+        exp = str(exposure)
+        if not os.path.exists(path):
+            os.makedirs(os.path.join(path, exp))
+        for cat in CATEG_DET:
+            os.makedirs(os.path.join(os.path.join(path, exp), cat))

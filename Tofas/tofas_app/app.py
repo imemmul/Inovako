@@ -15,7 +15,7 @@ import sys
 # TODO parallel inference
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/TOFAS/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--filter-cam', type=str)
     parser.add_argument('--filter-expo', type=str)
     parser.add_argument('--master', type=int, default=1)
-    parser.add_argument('--group-size', type=int, default=2)
+    parser.add_argument('--group-size', type=int, default=1)
     args = parser.parse_args()
     return args
 args = parse_args()
@@ -58,7 +58,7 @@ class EngineThread(QThread):
                 engine_v3_parallel.stop_engine()
         else:
             print(f"engine_v2 is running deployment")
-            engine_v3_single.stop_engine()
+            engine_v3_grouping.stop_engine()
 
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
@@ -153,9 +153,9 @@ class Inovako(QtWidgets.QMainWindow):
                 self.ins_time_stop = time.time()
                 self.stop_engine()
             else:
-                categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposures=args.exposure_time)
+                categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposure=args.exposure_time)
                 self.filter_select_expo.clear()
-                self.filter_select_expo.addItems(map(str, args.exposure_time))
+                # self.filter_select_expo.addItems([str(args.exposure_time)])
                 self.ins_time_start = time.time()
                 self.start_engine()
         else:
