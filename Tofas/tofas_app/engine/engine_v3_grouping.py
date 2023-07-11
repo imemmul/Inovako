@@ -28,19 +28,10 @@ DEFAULT_EXPOSURE = 10000
 
 
 # Below class designs are fucked up 
-class BaslerCamera():
-    def __init__(self, cam:py.InstantCamera, is_master, cam_id) -> None:
-        self.cam = cam
-        self.cam_id = cam_id
-        self.is_master = is_master
-    def IsMaster(self):
-        return self.is_master
-
 class BaslerCameraArray(): # For now this is deprecated, not used
     def __init__(self, num_cams, master_id) -> None:
         self.tlf_object = py.TlFactory.GetInstance()
         self.cam_array = py.InstantCameraArray(num_cams)
-        self.baslercam_array = []
         self.master_id = master_id
         self.devs = self.tlf_object.EnumerateDevices()
     def init_array(self, h, w, fps):
@@ -48,7 +39,6 @@ class BaslerCameraArray(): # For now this is deprecated, not used
             cam.Attach(self.tlf_object.CreateDevice(self.devs[idx]))
         self.cam_array.Open()
         self.configure_cams(h=h, w=w, fps=fps)
-        print(f"what is cam_array: {list(self.cam_array)}")
         return self.cam_array
     
     def configure_cams(self, h, w, fps):
@@ -73,7 +63,6 @@ class BaslerCameraArray(): # For now this is deprecated, not used
             cam.AcquisitionFrameRateEnable.SetValue(True)
             cam.AcquisitionFrameRate.SetValue(fps)
             cam.LineInverter.SetValue(True)
-            self.baslercam_array.append(BaslerCamera(cam=cam, is_master=(idx==self.master_id), cam_id=idx))
     def get_cam(self, index):
         return self.baslercam_array[index], self.cam_array[index] # returns tuple of BaslerCam obj and original InstantCameraAray
     
@@ -85,7 +74,7 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         
     def grouper(self, group_size, cam_array):
         """
-        Collect data into fixed-length chunks or blocks
+        returns group of given list with group_size
         """
         cam_list = list(cam_array)
         return [cam_list[i:i+group_size] for i in range(0, len(cam_list), group_size)]
@@ -94,10 +83,9 @@ def run_inference(q:Queue, id, args, running, devices):
     try:
         engine, device, H, W  = load_engine(args)
         run_id = len(os.listdir(args.out_dir))
-        # print(f"running inference group: {id}")
-        while running.is_set() or q.qsize() > 0:
+        print(f"running inference group: {id}")
+        while True:
             try:
-                start_time = time.time()
                 # count = len(os.listdir(args.out_dir))
                 # print(f"QUEUE SIZE OF cam:{cam_id}: {q.qsize()}")
                 # print(f"what is q_length = {q.qsize()}")
@@ -151,13 +139,15 @@ def run_inference(q:Queue, id, args, running, devices):
                     # print(f"image saved")
                     #print(f"trying to save det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg")
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
-                end_time = time.time()
-                print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
+                # print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
+                if not running.is_set() and q.qsize() == 0:
+                    break
+
             except Exception as e:
                 print(f"Some error occured in run_inference with cam_id:{cam_id}: {e}")
     except Exception as e:
         print(f"Error in inference: {e}")
-    print("stopping inference")
+    print(f"stopping inference for group: {id}")
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
@@ -174,16 +164,17 @@ def part_detection(img, threshold):
 
 def run_devices(cam_groups, nums_cams, args): # cam_groups are zipped tupled BCA object, 
     # Define a function to be run in each thread
-    allocated_cam_ids = []
     cam_id = 0
     # print(f"what is len of cam_groups {len(cam_groups)}")
+    inference_processes = []
     delay_dict = {}
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
         for group_id, group in enumerate(cam_groups):
             print(f"group_id: {group_id}")
             q = Queue()
-            p = Process(target=run_inference, args=(q, group_id, args, running, list_devices(args))) # background listening
+            p = Process(target=run_inference, args=(q, group_id, args, running, list_devices(args))) # background listening (Queue)
             p.start()
+            inference_processes.append(p)
             try:
                 for cam in group:
                     # print(f"cam: {cam}, cam_id {cam_id}")
@@ -194,13 +185,16 @@ def run_devices(cam_groups, nums_cams, args): # cam_groups are zipped tupled BCA
                         print(f"master cam thread loaded")
                         executor.submit(trigger_master, args, cam, cam_id, running, q, delay_dict, capture_all)
                     cam_id += 1
+                for i, p in enumerate(inference_processes):
+                    print(f"Process {i} is {'alive' if p.is_alive() else 'not alive'}")
             except Exception as e:
                 print(f"some error occured in thread pool: {e}")
                 traceback.print_exc()
-    executor.shutdown(wait=False)  # Stop the executor
-    if p.is_alive(): # If the process is still running, terminate it
-        p.terminate()
-    p.join()
+    executor.shutdown(wait=True)  # Stop the executor
+    for p in inference_processes:
+        if p.is_alive(): # If the process is still running, terminate it
+            p.terminate()
+        p.join()
     print(f"executor shutdowned")
     # Get the start times in a list
     start_times = list(delay_dict.values())
@@ -219,7 +213,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
     # TODO convert this into for cam in group run cam 
     try:
         capture_amount = 0
-        while running.is_set():
+        while True:
             # print(f"master is running")
             cam.ExposureTime.SetValue(int(args.exposure_time))
             cam.ExecuteSoftwareTrigger()
@@ -242,6 +236,8 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
             else:
                 print(f"couldn't capture master")
                 time.sleep(args.interval)
+            if not running.is_set():
+                break
         delay_dict[cam_id] = time.time()
         cam.Close()
         print(f"Thread with cam_id {cam_id} stopped")
@@ -253,7 +249,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
 def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all):
         capture_amount = 0
         try:
-            while running.is_set():
+            while True:
                 # print(f"running ?: {running.is_set()}")
                 # print(f"i am trying cam: {cam_id}")
                 if capture_all.is_set():
@@ -274,6 +270,8 @@ def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all):
                         time.sleep(args.interval)
                     delay_dict[cam_id] = time.time()
                     # print(f"camera {cam_id} captured image in {time.time()}")
+                    if not running.is_set():
+                        break
             cam.Close()
         except Exception as e:
             print(f"some bugs in trigger_and_capture: {e}")
@@ -333,10 +331,6 @@ def stop_engine():
     print(f"stopped the engine")
 
 def run_engine(args):
-    # if len(os.listdir(args.out_dir)) > 0:
-    #     for out in os.listdir(args.out_dir):
-    #         os.remove(f"{args.out_dir}{out}")
-    #     print(f"Deleted all files in out-dir")
     global running
     running = multiprocessing.Event()
     running.set()
@@ -358,8 +352,6 @@ def list_devices(args):
             return [device.GetFriendlyName() for device in devs]
     except Exception as e:
         print(f"Error in list_devices")
-
-
 
 if __name__ == "__main__":
     set_start_method('spawn') # this is temp

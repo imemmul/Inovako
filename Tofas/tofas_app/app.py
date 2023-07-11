@@ -46,7 +46,7 @@ class EngineThread(QThread):
             else:
                 engine_v3_parallel.run_engine(args)
         else:
-            print(f"engine_v2 is running deployment")
+            print(f"engine_v3 is running grouping")
             engine_v3_grouping.run_engine(args)
     def stop_engine_thread(self):
         if args.test_engine:
@@ -57,7 +57,7 @@ class EngineThread(QThread):
             else:
                 engine_v3_parallel.stop_engine()
         else:
-            print(f"engine_v2 is running deployment")
+            # print(f"engine_v2 is running deployment")
             engine_v3_grouping.stop_engine()
 
 class Inovako(QtWidgets.QMainWindow):
@@ -86,10 +86,8 @@ class Inovako(QtWidgets.QMainWindow):
         self.master_select.addItems(list_devices(args))
         self.master_select.currentIndexChanged.connect(self.master_selected)
         self.filter_select_cam = self.findChild(QtWidgets.QComboBox, 'filter_select')
-        self.filter_select_expo = self.findChild(QtWidgets.QComboBox, 'filter_select_expo')
         self.filter_select_cam.addItems(list_devices(args))
         self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
-        self.filter_select_expo.currentIndexChanged.connect(self.filter_selection_expo)
         self.image_name = self.findChild(QtWidgets.QLabel, 'image_name')
         # Connect signals and slots
         self.backButton.clicked.connect(self.previous_image)
@@ -112,9 +110,13 @@ class Inovako(QtWidgets.QMainWindow):
         print(f"master selected with cam id: {cam_id}")
         args.master = cam_id
 
+    def get_exposure_time(self, run_id):
+        expo_path = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" 
+        return os.listdir(expo_path)[0]
+
     def select_folder(self):
         run_id = len(os.listdir(args.out_dir))
-        current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" + self.filter_select_expo.currentText() + "/DET/"
+        current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + f"/{self.get_exposure_time(run_id=run_id)}" + "/DET/"
         print(f"current dir {current_directory}")
         self.images = QDir(current_directory).entryList(['*.png', '*.jpg', '*.jpeg'], QDir.Filter.Files)
         self.images = [os.path.join(current_directory, img) for img in sorted(self.images)]
@@ -124,8 +126,9 @@ class Inovako(QtWidgets.QMainWindow):
     def display_image(self):
         if self.images:
             print(f"setting imagename : {self.images[self.index].split('/')}")
+            cam_name = self.images[self.index].split('/')[-4]
             image_name = self.images[self.index].split('/')[-1]
-            self.image_name.setText(image_name)
+            self.image_name.setText(f"{cam_name}: {image_name}")
             pixmap = QtGui.QPixmap(self.images[self.index])
             self.imageLabel.setPixmap(pixmap.scaled(self.imageLabel.size()))
 
@@ -154,8 +157,6 @@ class Inovako(QtWidgets.QMainWindow):
                 self.stop_engine()
             else:
                 categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposure=args.exposure_time)
-                self.filter_select_expo.clear()
-                # self.filter_select_expo.addItems([str(args.exposure_time)])
                 self.ins_time_start = time.time()
                 self.start_engine()
         else:
