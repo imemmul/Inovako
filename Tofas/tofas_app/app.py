@@ -28,8 +28,9 @@ def parse_args():
     parser.add_argument('--test-engine', action="store_true")
     parser.add_argument('--filter-cam', type=str)
     parser.add_argument('--filter-expo', type=str)
-    parser.add_argument('--master', type=int, default=1)
-    parser.add_argument('--group-size', type=int, default=1)
+    parser.add_argument('--master', type=int, default=0)
+    parser.add_argument('--group-size', type=int, default=1) # TODO change this with 2
+    parser.add_argument('--wait-time', type=int, default=10)
     args = parser.parse_args()
     return args
 args = parse_args()
@@ -90,6 +91,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
         self.image_name = self.findChild(QtWidgets.QLabel, 'image_name')
         # Connect signals and slots
+        self.update_status(2)
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
         self.folderButton.clicked.connect(self.select_folder)
@@ -99,6 +101,9 @@ class Inovako(QtWidgets.QMainWindow):
         self.engineThread = None
         self.ins_time_start = 0
         self.ins_time_stop = 0
+        self.status_check_timer = QtCore.QTimer()
+        self.status_check_timer.timeout.connect(self.check_engine_status)
+        self.status_check_timer.start(100)
     
     def filter_selection_cam(self, cam_id):
         args.filter_cam = list_devices(args)[cam_id]
@@ -195,6 +200,20 @@ class Inovako(QtWidgets.QMainWindow):
         self.buttonStart.setText("Baslat")
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
+
+    def update_status(self, text):
+        with open('./status.txt', 'w') as f:
+            f.write(str(text))
+
+    def check_engine_status(self):
+        with open('./status.txt', 'r') as f:
+            status = f.read().strip()
+            # print(f"checking status of engine got: {status}") 
+            if int(status) == 1:
+                self.ins_time_stop = time.time()
+                self.stop_engine()
+                self.update_status(2)
+
 
 def pop_up_call(error_name, error_text):
     window.pop_up_message(error_name, error_text)

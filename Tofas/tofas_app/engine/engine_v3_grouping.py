@@ -16,18 +16,16 @@ import os
 from itertools import zip_longest
 from PyQt6.QtWidgets import QMessageBox
 from .utils import count_images
-#from ..app import pop_up_call
+# from ..app import pop_up_call
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import traceback
 
 DEFAULT_EXPOSURE = 10000
 # TODO ProcessPoolExecutor
 # TODO some optimizations needed, cam queue cam might wait other cam's to complete
-# TODO parallel inference (max delay 0.01 = 10ms) acceptable
-# TODO design of seperating the functions for master and the others is faulty, no need to do that, a simple Cam class might be better
 
 
-# Below class designs are fucked up 
+
 class BaslerCameraArray(): # For now this is deprecated, not used
     def __init__(self, num_cams, master_id) -> None:
         self.tlf_object = py.TlFactory.GetInstance()
@@ -78,7 +76,7 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         """
         cam_list = list(cam_array)
         return [cam_list[i:i+group_size] for i in range(0, len(cam_list), group_size)]
-            
+
 def run_inference(q:Queue, id, args, running, devices):
     try:
         engine, device, H, W  = load_engine(args)
@@ -141,13 +139,13 @@ def run_inference(q:Queue, id, args, running, devices):
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
                 # print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
                 if not running.is_set() and q.qsize() == 0:
+                    print(f"stopping inference for group: {id}")
                     break
 
             except Exception as e:
                 print(f"Some error occured in run_inference with cam_id:{cam_id}: {e}")
     except Exception as e:
         print(f"Error in inference: {e}")
-    print(f"stopping inference for group: {id}")
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
@@ -213,6 +211,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
     # TODO convert this into for cam in group run cam 
     try:
         capture_amount = 0
+        current_wait_time = 0
         while True:
             # print(f"master is running")
             cam.ExposureTime.SetValue(int(args.exposure_time))
@@ -224,14 +223,19 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
                 img = grabResult.GetArray()
                 if part_detection(img, args.gray_thres):
                     #print(f"part detected running all other camereas")
+                    wait_time = 0
                     capture_all.set() # run other cameras
                     capture_amount += 1
                     capture_time = time.time()
                     q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
                     time.sleep(args.interval)
                 else:
+                    current_wait_time += 1
                     print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
                     capture_all.clear()
+                    if current_wait_time == args.wait_time:
+                        print(f"closing the cams")
+                        stop_engine()
                     time.sleep(args.check_interval)
             else:
                 print(f"couldn't capture master")
@@ -270,8 +274,8 @@ def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all):
                         time.sleep(args.interval)
                     delay_dict[cam_id] = time.time()
                     # print(f"camera {cam_id} captured image in {time.time()}")
-                    if not running.is_set():
-                        break
+                if not running.is_set():
+                    break
             cam.Close()
         except Exception as e:
             print(f"some bugs in trigger_and_capture: {e}")
@@ -325,9 +329,14 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def update_status(engine_stopped):
+    with open('./status.txt', 'w') as f:
+        f.write(str(int(engine_stopped)))
+
 def stop_engine():
     global running
     running.clear()
+    update_status(True)
     print(f"stopped the engine")
 
 def run_engine(args):
@@ -339,6 +348,7 @@ def run_engine(args):
     bca, cam_array, num_cams = load_devices(args)
     cam_groups = bca.create_groups(args.group_size) # this is [(baslercam_array[0], py.InstantCameraArray[0])]'
     print(f"Devices are loaded, running")
+    update_status(False) # engine started
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
     run_devices(cam_groups=cam_groups, nums_cams=num_cams, args=args)
     cam_array.StopGrabbing()
