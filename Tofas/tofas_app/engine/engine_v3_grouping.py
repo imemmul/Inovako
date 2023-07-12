@@ -24,8 +24,6 @@ DEFAULT_EXPOSURE = 10000
 # TODO ProcessPoolExecutor
 # TODO some optimizations needed, cam queue cam might wait other cam's to complete
 
-
-
 class BaslerCameraArray(): # For now this is deprecated, not used
     def __init__(self, num_cams, master_id) -> None:
         self.tlf_object = py.TlFactory.GetInstance()
@@ -139,13 +137,12 @@ def run_inference(q:Queue, id, args, running, devices):
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
                 # print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
                 if not running.is_set() and q.qsize() == 0:
-                    print(f"stopping inference for group: {id}")
                     break
-
             except Exception as e:
                 print(f"Some error occured in run_inference with cam_id:{cam_id}: {e}")
     except Exception as e:
         print(f"Error in inference: {e}")
+    print(f"stopping inference for group: {id}")
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
@@ -223,7 +220,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
                 img = grabResult.GetArray()
                 if part_detection(img, args.gray_thres):
                     #print(f"part detected running all other camereas")
-                    wait_time = 0
+                    current_wait_time = 0
                     capture_all.set() # run other cameras
                     capture_amount += 1
                     capture_time = time.time()
@@ -234,7 +231,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
                     print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
                     capture_all.clear()
                     if current_wait_time == args.wait_time:
-                        print(f"closing the cams")
+                        print(f"Waiting limit reached stopping.")
                         stop_engine()
                     time.sleep(args.check_interval)
             else:
