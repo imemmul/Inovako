@@ -19,6 +19,8 @@ from .utils import count_images
 # from ..app import pop_up_call
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import traceback
+from threading import Barrier
+
 
 DEFAULT_EXPOSURE = 10000
 # TODO ProcessPoolExecutor
@@ -155,6 +157,7 @@ def run_devices(cam_groups, nums_cams, args):
     Runs connected device, assigns threads to each device.
     """
     cam_id = 0
+    barrier = Barrier(nums_cams)
     inference_processes = []
     delay_dict = {}
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
@@ -169,10 +172,10 @@ def run_devices(cam_groups, nums_cams, args):
                     # print(f"cam: {cam}, cam_id {cam_id}")
                     # print(f"capture amount: {capture_amount}")
                     if cam_id != args.master:
-                        executor.submit(trigger_and_capture, args, cam, cam_id, running, q, delay_dict, capture_all) 
+                        executor.submit(trigger_and_capture, args, cam, cam_id, running, q, delay_dict, capture_all, barrier) 
                     else:
                         print(f"master cam thread loaded")
-                        executor.submit(trigger_master, args, cam, cam_id, running, q, delay_dict, capture_all)
+                        executor.submit(trigger_master, args, cam, cam_id, running, q, delay_dict, capture_all, barrier)
                     cam_id += 1
                 for i, p in enumerate(inference_processes):
                     print(f"Process {i} is {'alive' if p.is_alive() else 'not alive'}")
@@ -198,41 +201,48 @@ def run_devices(cam_groups, nums_cams, args):
     for i in range(len(delays)):
         print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
 
-def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
-    # TODO convert this into for cam in group run cam 
+def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
+    # TODO convert this into for cam in group run cam
+    capture_amount = 0
     try:
-        capture_amount = 0
         current_wait_time = 0
         while True:
             # print(f"master is running")
             # cam.ExposureTime.SetValue(int(args.exposure_time))
-            cam.ExecuteSoftwareTrigger()
-            grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-            # print(f"grabbed something")
-            if grabResult.GrabSucceeded():
-                print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
-                img = grabResult.GetArray()
-                if part_detection(img, args.gray_thres):
-                    #print(f"part detected running all other camereas")
-                    current_wait_time = 0
-                    capture_all.set() # run other cameras
-                    capture_amount += 1
-                    capture_time = time.time()
-                    q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
-                    time.sleep(args.interval)
+            try:
+                cam.ExecuteSoftwareTrigger()
+                grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+                # print(f"grabbed something")
+                if grabResult.GrabSucceeded():
+                    print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
+                    img = grabResult.GetArray()
+                    if part_detection(img, args.gray_thres):
+                        #print(f"part detected running all other camereas")
+                        current_wait_time = 0
+                        capture_all.set() # run other cameras
+                        capture_amount += 1
+                        capture_time = time.time()
+                        q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
+                        time.sleep(args.interval)
+                    else:
+                        current_wait_time += 1
+                        print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
+                        capture_all.clear()
+                        if current_wait_time == args.wait_time:
+                            print(f"Waiting limit reached stopping.")
+                            stop_engine()
+                        time.sleep(args.check_interval)
                 else:
-                    current_wait_time += 1
-                    print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
-                    capture_all.clear()
-                    if current_wait_time == args.wait_time:
-                        print(f"Waiting limit reached stopping.")
-                        stop_engine()
-                    time.sleep(args.check_interval)
-            else:
-                print(f"couldn't capture master")
-                time.sleep(args.interval)
-            if not running.is_set():
-                break
+                    print(f"couldn't capture master")
+                    time.sleep(args.interval)
+                if not running.is_set():
+                    break
+            except Exception as e:
+                print(f"some error occured in trigger_master capturing: {e}")
+                traceback.print_exc()
+            finally:
+                print("waitting")
+                barrier.wait()
         delay_dict[cam_id] = time.time()
         cam.Close()
         print(f"Thread with cam_id {cam_id} stopped")
@@ -241,32 +251,37 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
         traceback.print_exc()
         # print(f"camera {cam_id} captured image in {time.time()}")
 
-def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all):
+def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
         capture_amount = 0
         try:
             while True:
                 # print(f"running ?: {running.is_set()}")
                 # print(f"i am trying cam: {cam_id}")
-                if capture_all.is_set():
-                    # print(f"i am running cam: {cam_id}")
-                    # for _ in range(1):
-                    # cam.ExposureTime.SetValue(int(args.exposure_time))
-                    cam.ExecuteSoftwareTrigger()
-                    grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-                    # print(f"grabbed something")
-                    if grabResult.GrabSucceeded():
-                        print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
-                        img = grabResult.GetArray()
-                        # print(f"image put in queue")
-                        capture_amount += 1
-                        capture_time = time.time()
-                        #print(f"image got with shape: {img.shape} from cam: {cam_id}")
-                        q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
-                        time.sleep(args.interval)
-                    delay_dict[cam_id] = time.time()
-                    # print(f"camera {cam_id} captured image in {time.time()}")
-                if not running.is_set():
-                    break
+                try:
+                    if capture_all.is_set():
+                        # print(f"i am running cam: {cam_id}")
+                        # for _ in range(1):
+                        # cam.ExposureTime.SetValue(int(args.exposure_time))
+                        cam.ExecuteSoftwareTrigger()
+                        grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+                        # print(f"grabbed something")
+                        if grabResult.GrabSucceeded():
+                            print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
+                            img = grabResult.GetArray()
+                            # print(f"image put in queue")
+                            capture_time = time.time()
+                            #print(f"image got with shape: {img.shape} from cam: {cam_id}")
+                            capture_amount += 1
+                            q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
+                            time.sleep(args.interval)
+                        delay_dict[cam_id] = time.time()
+                        # print(f"camera {cam_id} captured image in {time.time()}")
+                    if not running.is_set():
+                        break
+                except Exception as e:
+                    print(f"some bugs in trigger_and_capture capturing: {e}")
+                finally:
+                    barrier.wait()
             cam.Close()
         except Exception as e:
             print(f"some bugs in trigger_and_capture: {e}")
