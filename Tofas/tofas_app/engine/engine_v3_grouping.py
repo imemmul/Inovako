@@ -51,7 +51,6 @@ class BaslerCameraArray(): # For now this is deprecated, not used
             cam.TriggerSelector = "FrameStart"
             cam.TriggerMode.SetValue('On')
             cam.TriggerSource.SetValue('Software')
-            # below 3 lines run the flashes on cameras TODO what to do here ?
             cam.Gamma.SetValue(0.7)
             cam.LineSelector.SetValue("Line2")
             cam.LineMode.SetValue("Output")
@@ -63,9 +62,6 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         return self.baslercam_array[index], self.cam_array[index] # returns tuple of BaslerCam obj and original InstantCameraAray
     
     def create_groups(self, group_size):
-        """
-        should return zipped tuple list which contains baslercam_array and normal cam_array so that we can use baslercam object functionalities on cam_array
-        """
         return self.grouper(group_size, self.cam_array)
         
     def grouper(self, group_size, cam_array):
@@ -75,19 +71,16 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         cam_list = list(cam_array)
         return [cam_list[i:i+group_size] for i in range(0, len(cam_list), group_size)]
 
-def run_inference(q:Queue, id, args, running, devices):
+def run_inference(q:Queue, group_id, args, running, devices):
     try:
         engine, device, H, W  = load_engine(args)
         run_id = len(os.listdir(args.out_dir))
         print(f"running inference group: {id}")
         while True:
             try:
-                # count = len(os.listdir(args.out_dir))
                 # print(f"QUEUE SIZE OF cam:{cam_id}: {q.qsize()}")
-                # print(f"what is q_length = {q.qsize()}")
                 image, cam_id, exp_time, capture_id, capture_time = q.get()
-                print(f"image taken from cam: {cam_id}, processing in group {id}")
-                # print(f"cam id {cam_id} captured in {capture_time}")
+                print(f"image taken from cam: {cam_id}, processing in group {group_id}")
                 bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                 draw = bgr.copy()
                 bgr, ratio, dwdh = letterbox(bgr, (W, H))
@@ -157,10 +150,11 @@ def part_detection(img, threshold):
     print(f"gray_value: {gray_value}, and {gray_value > threshold}")
     return gray_value > threshold
 
-def run_devices(cam_groups, nums_cams, args): # cam_groups are zipped tupled BCA object, 
-    # Define a function to be run in each thread
+def run_devices(cam_groups, nums_cams, args):
+    """
+    Runs connected device, assigns threads to each device.
+    """
     cam_id = 0
-    # print(f"what is len of cam_groups {len(cam_groups)}")
     inference_processes = []
     delay_dict = {}
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
