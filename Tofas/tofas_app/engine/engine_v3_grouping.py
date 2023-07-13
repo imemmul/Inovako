@@ -30,19 +30,19 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         self.cam_array = py.InstantCameraArray(num_cams)
         self.master_id = master_id
         self.devs = self.tlf_object.EnumerateDevices()
-    def init_array(self, h, w, fps):
+    def init_array(self, args,  h, w, fps):
         for idx, cam in enumerate(self.cam_array):
             cam.Attach(self.tlf_object.CreateDevice(self.devs[idx]))
         self.cam_array.Open()
-        self.configure_cams(h=h, w=w, fps=fps)
+        self.configure_cams(args=args, h=h, w=w, fps=fps)
         return self.cam_array
     
-    def configure_cams(self, h, w, fps):
+    def configure_cams(self, args, h, w, fps):
         for idx, cam in enumerate(self.cam_array):
             camera_serial = cam.DeviceInfo.GetSerialNumber()
             print(f"set context {idx} for camera {camera_serial}")
             cam.SetCameraContext(idx)
-            cam.ExposureTime.SetValue(DEFAULT_EXPOSURE)
+            cam.ExposureTime.SetValue(int(args.exposure_time))
             cam.PixelFormat.SetValue('Mono8')
             #cam.Width.SetValue(2600)
             #cam.Height.SetValue(2128)
@@ -205,7 +205,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all):
         current_wait_time = 0
         while True:
             # print(f"master is running")
-            cam.ExposureTime.SetValue(int(args.exposure_time))
+            # cam.ExposureTime.SetValue(int(args.exposure_time))
             cam.ExecuteSoftwareTrigger()
             grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
             # print(f"grabbed something")
@@ -250,7 +250,7 @@ def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all):
                 if capture_all.is_set():
                     # print(f"i am running cam: {cam_id}")
                     # for _ in range(1):
-                    cam.ExposureTime.SetValue(int(args.exposure_time))
+                    # cam.ExposureTime.SetValue(int(args.exposure_time))
                     cam.ExecuteSoftwareTrigger()
                     grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
                     # print(f"grabbed something")
@@ -292,7 +292,7 @@ def load_devices(args):
         num_cams = len(devs)
         print(f"num cams: {num_cams}")
         bca = BaslerCameraArray(num_cams=num_cams, master_id=args.master)
-        cam_array = bca.init_array(w=1920, h=1080, fps=60)
+        cam_array = bca.init_array(args=args, w=1920, h=1080, fps=60)
         return bca, cam_array, num_cams
     else:
         print(f"No devices found")
