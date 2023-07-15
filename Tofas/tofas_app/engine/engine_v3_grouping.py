@@ -1,3 +1,9 @@
+# The following import statements include necessary libraries for the operation of the code. 
+# The libraries are used for image processing, parallel processing, time manipulation, 
+# error handling, argument parsing, etc.
+
+# TOFAS MAIN ENGINE // last updated in 07.15.2023 E.Ulurak emirulurak@mgmail.com
+
 import pypylon.pylon as py
 import time
 import sys
@@ -22,50 +28,53 @@ import traceback
 from threading import Barrier
 
 
-DEFAULT_EXPOSURE = 10000
-# TODO ProcessPoolExecutor
-# TODO some optimizations needed, cam queue cam might wait other cam's to complete
-
-class BaslerCameraArray(): # For now this is deprecated, not used
+# The following class represents an array of Basler cameras and is used to initialize, configure and manage the cameras.
+class BaslerCameraArray():
+    # The constructor method initializes the BaslerCameraArray object with a given number of cameras and a master camera id.
     def __init__(self, num_cams, master_id) -> None:
-        self.tlf_object = py.TlFactory.GetInstance()
-        self.cam_array = py.InstantCameraArray(num_cams)
-        self.master_id = master_id
-        self.devs = self.tlf_object.EnumerateDevices()
+        self.tlf_object = py.TlFactory.GetInstance()  # This line gets an instance of the Pylon Transport Layer Factory.
+        self.cam_array = py.InstantCameraArray(num_cams)  # Creates an array of InstantCamera objects.
+        self.master_id = master_id  # The ID of the master camera.
+        self.devs = self.tlf_object.EnumerateDevices()  # List of all available pylon devices.
+    
+    # This method initializes the camera array by attaching each camera in the array to a device and opening it. Then it configures the cameras.
     def init_array(self, args,  h, w, fps):
         for idx, cam in enumerate(self.cam_array):
             cam.Attach(self.tlf_object.CreateDevice(self.devs[idx]))
         self.cam_array.Open()
         self.configure_cams(args=args, h=h, w=w, fps=fps)
         return self.cam_array
-    
+
+    # This method configures each camera in the array based on the arguments provided.  
     def configure_cams(self, args, h, w, fps):
         for idx, cam in enumerate(self.cam_array):
             camera_serial = cam.DeviceInfo.GetSerialNumber()
             print(f"set context {idx} for camera {camera_serial}")
+            # Various camera settings are adjusted here.
+            # Note: This is an example configuration, the exact settings will depend on your use case.
             cam.SetCameraContext(idx)
-            cam.ExposureTime.SetValue(int(args.exposure_time))
-            cam.PixelFormat.SetValue('Mono8')
-            #cam.Width.SetValue(2600)
-            #cam.Height.SetValue(2128)
-            # cam.Width.SetValue(w)
-            # cam.Height.SetValue(h)
-            cam.TriggerSelector = "FrameStart"
-            cam.TriggerMode.SetValue('On')
-            cam.TriggerSource.SetValue('Software')
-            cam.Gamma.SetValue(0.7)
-            cam.LineSelector.SetValue("Line2")
-            cam.LineMode.SetValue("Output")
-            cam.LineSource.SetValue("ExposureActive")
-            cam.AcquisitionFrameRateEnable.SetValue(True)
-            cam.AcquisitionFrameRate.SetValue(fps)
-            cam.LineInverter.SetValue(True)
+            cam.ExposureTime.SetValue(int(args.exposure_time))  # Set exposure time for the camera.
+            cam.PixelFormat.SetValue('Mono8')  # Set pixel format to Mono8.
+            cam.TriggerSelector = "FrameStart"  # Selects the kind of trigger to configure.
+            cam.TriggerMode.SetValue('On')  # Turns triggering mode on.
+            cam.TriggerSource.SetValue('Software')  # The source that triggers the acquisition.
+            cam.Gamma.SetValue(0.7)  # The gamma correction value.
+            cam.LineSelector.SetValue("Line2")  # Selects the input or output line.
+            cam.LineMode.SetValue("Output")  # Sets the mode of the selected line.
+            cam.LineSource.SetValue("ExposureActive")  # The signal source for the selected line.
+            cam.AcquisitionFrameRateEnable.SetValue(True)  # Enables setting the acquisition frame rate.
+            cam.AcquisitionFrameRate.SetValue(fps)  # The acquisition frame rate to set.
+            cam.LineInverter.SetValue(True)  # Inverts the logic level of the selected line.
+
+    # This method returns the BaslerCam object and original InstantCameraArray for the provided index.
     def get_cam(self, index):
-        return self.baslercam_array[index], self.cam_array[index] # returns tuple of BaslerCam obj and original InstantCameraAray
-    
+        return self.baslercam_array[index], self.cam_array[index]
+
+    # This method creates groups of cameras based on the provided group size.
     def create_groups(self, group_size):
         return self.grouper(group_size, self.cam_array)
-        
+
+    # This method groups a list of cameras into smaller groups of a specified size.
     def grouper(self, group_size, cam_array):
         """
         returns group of given list with group_size
@@ -73,7 +82,14 @@ class BaslerCameraArray(): # For now this is deprecated, not used
         cam_list = list(cam_array)
         return [cam_list[i:i+group_size] for i in range(0, len(cam_list), group_size)]
 
+# This function runs inference on images fetched from the queue.
+# It runs the inference in a loop, as long as there are images in the queue and the running flag is set.
+# If no object is detected in the image, it is saved to a "NO_DET" directory.
+# If an object is detected, it is marked in the image and the image is saved to a "DET" directory.
 def run_inference(q:Queue, group_id, args, running, devices):
+    """
+    Creates TensorRT engines with assigned groups and inference each image captured from that group cameras.
+    """
     try:
         engine, device, H, W  = load_engine(args)
         run_id = len(os.listdir(args.out_dir))
@@ -141,20 +157,13 @@ def run_inference(q:Queue, group_id, args, running, devices):
 
 def part_detection(img, threshold):
     gray_value = np.mean(img)
-    # below is selecting a 400x400
-    # height, width = img.shape[:2]
-    # start_x = width // 2 - 200
-    # end_x = width // 2 + 200
-    # start_y = 0
-    # end_y = 400
-    # selected_area = cv2.cvtColor(img[start_y:end_y, start_x:end_x], cv2.COLOR_RGB2GRAY)
-    # gray_value = np.mean(selected_area)
     print(f"gray_value: {gray_value}, and {gray_value > threshold}")
     return gray_value > threshold
 
 def run_devices(cam_groups, nums_cams, args):
     """
-    Runs connected device, assigns threads to each device.
+    Starts running the connected devices and assigns threads to each device.
+    Uses multiprocessing to create processes and assigns a separate thread to each camera device within that process.
     """
     cam_id = 0
     barrier = Barrier(nums_cams)
@@ -202,7 +211,11 @@ def run_devices(cam_groups, nums_cams, args):
         print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
 
 def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
-    # TODO convert this into for cam in group run cam
+    
+    """
+    Master thread that controls the master camera. It checks if the master camera is able to capture images,
+    if it does it will set a flag to trigger other camera to start capturing as well.
+    """
     capture_amount = 0
     try:
         current_wait_time = 0
@@ -252,40 +265,43 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
         # print(f"camera {cam_id} captured image in {time.time()}")
 
 def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
-        capture_amount = 0
-        try:
-            while True:
-                # print(f"running ?: {running.is_set()}")
-                # print(f"i am trying cam: {cam_id}")
-                try:
-                    if capture_all.is_set():
-                        # print(f"i am running cam: {cam_id}")
-                        # for _ in range(1):
-                        # cam.ExposureTime.SetValue(int(args.exposure_time))
-                        cam.ExecuteSoftwareTrigger()
-                        grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
-                        # print(f"grabbed something")
-                        if grabResult.GrabSucceeded():
-                            print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
-                            img = grabResult.GetArray()
-                            # print(f"image put in queue")
-                            capture_time = time.time()
-                            #print(f"image got with shape: {img.shape} from cam: {cam_id}")
-                            capture_amount += 1
-                            q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
-                            time.sleep(args.interval)
-                        delay_dict[cam_id] = time.time()
-                        # print(f"camera {cam_id} captured image in {time.time()}")
-                    if not running.is_set():
-                        break
-                except Exception as e:
-                    print(f"some bugs in trigger_and_capture capturing: {e}")
-                finally:
-                    barrier.wait()
-            cam.Close()
-        except Exception as e:
-            print(f"some bugs in trigger_and_capture: {e}")
-        print(f"Thread with cam_id {cam_id} stopped")
+    """
+    Function to capture images from the camera. It gets triggered by the master thread to start capturing.
+    """
+    capture_amount = 0
+    try:
+        while True:
+            # print(f"running ?: {running.is_set()}")
+            # print(f"i am trying cam: {cam_id}")
+            try:
+                if capture_all.is_set():
+                    # print(f"i am running cam: {cam_id}")
+                    # for _ in range(1):
+                    # cam.ExposureTime.SetValue(int(args.exposure_time))
+                    cam.ExecuteSoftwareTrigger()
+                    grabResult = cam.RetrieveResult(1000, py.TimeoutHandling_ThrowException)
+                    # print(f"grabbed something")
+                    if grabResult.GrabSucceeded():
+                        print(f"image captured from cam:{cam_id} with exp_time: {args.exposure_time}")
+                        img = grabResult.GetArray()
+                        # print(f"image put in queue")
+                        capture_time = time.time()
+                        #print(f"image got with shape: {img.shape} from cam: {cam_id}")
+                        capture_amount += 1
+                        q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
+                        time.sleep(args.interval)
+                    delay_dict[cam_id] = time.time()
+                    # print(f"camera {cam_id} captured image in {time.time()}")
+                if not running.is_set():
+                    break
+            except Exception as e:
+                print(f"some bugs in trigger_and_capture capturing: {e}")
+            finally:
+                barrier.wait()
+        cam.Close()
+    except Exception as e:
+        print(f"some bugs in trigger_and_capture: {e}")
+    print(f"Thread with cam_id {cam_id} stopped")
 
 def load_engine(args):
     try:
