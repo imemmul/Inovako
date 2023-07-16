@@ -26,6 +26,10 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import traceback
 from threading import Barrier
 
+# TODO is more sync possible ?
+# TODO how to communicate each frame(image) with other cams, the main problem is all cameras in different thread and we'able to get them in inference process (e: run_inference)
+
+
 # The following class represents an array of Basler cameras and is used to initialize, configure and manage the cameras.
 class BaslerCameraArray():
     # The constructor method initializes the BaslerCameraArray object with a given number of cameras and a master camera id.
