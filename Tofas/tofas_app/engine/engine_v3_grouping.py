@@ -2,7 +2,7 @@
 # The libraries are used for image processing, parallel processing, time manipulation, 
 # error handling, argument parsing, etc.
 
-# TOFAS MAIN ENGINE // last updated in 07.15.2023 E.Ulurak emirulurak@mgmail.com
+# TOFAS MAIN ENGINE // last updated in 07.17.2023 Emir Ulurak emirulurak@gmail.com
 
 import pypylon.pylon as py
 import time
@@ -22,11 +22,9 @@ import os
 from itertools import zip_longest
 from PyQt6.QtWidgets import QMessageBox
 from .utils import count_images
-# from ..app import pop_up_call
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import traceback
 from threading import Barrier
-
 
 # The following class represents an array of Basler cameras and is used to initialize, configure and manage the cameras.
 class BaslerCameraArray():
@@ -93,7 +91,7 @@ def run_inference(q:Queue, group_id, args, running, devices):
     try:
         engine, device, H, W  = load_engine(args)
         run_id = len(os.listdir(args.out_dir))
-        print(f"running inference group: {id}")
+        print(f"running inference group: {group_id}")
         while True:
             try:
                 # print(f"QUEUE SIZE OF cam:{cam_id}: {q.qsize()}")
@@ -151,11 +149,12 @@ def run_inference(q:Queue, group_id, args, running, devices):
                     break
             except Exception as e:
                 print(f"Some error occured in run_inference with cam_id:{cam_id}: {e}")
+        print(f"stopping inference for group: {group_id}")
     except Exception as e:
         print(f"Error in inference: {e}")
-    print(f"stopping inference for group: {id}")
 
 def part_detection(img, threshold):
+    # Detect part based on the average gray value of the image.
     gray_value = np.mean(img)
     print(f"gray_value: {gray_value}, and {gray_value > threshold}")
     return gray_value > threshold
@@ -165,6 +164,7 @@ def run_devices(cam_groups, nums_cams, args):
     Starts running the connected devices and assigns threads to each device.
     Uses multiprocessing to create processes and assigns a separate thread to each camera device within that process.
     """
+    update_status(False) # engine started
     cam_id = 0
     barrier = Barrier(nums_cams)
     inference_processes = []
@@ -192,7 +192,7 @@ def run_devices(cam_groups, nums_cams, args):
                 print(f"some error occured in thread pool: {e}")
                 traceback.print_exc()
     executor.shutdown(wait=True)  # Stop the executor
-    for p in inference_processes:
+    for p_id, p in enumerate(inference_processes):
         if p.is_alive(): # If the process is still running, terminate it
             p.terminate()
         p.join()
@@ -210,11 +210,13 @@ def run_devices(cam_groups, nums_cams, args):
     for i in range(len(delays)):
         print(f"Delay between camera {i} and camera {i + 1}: {delays[i]} seconds")
 
+# The function below is the master thread that controls the master camera.
+# It triggers the master camera, and captures images from it. It also adds the images to the queue.
 def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
-    
     """
-    Master thread that controls the master camera. It checks if the master camera is able to capture images,
-    if it does it will set a flag to trigger other camera to start capturing as well.
+    This is the main thread for the master camera.
+    It triggers the master camera, captures images from it, and puts the images in the queue.
+    It also synchronizes with the other cameras using a barrier.
     """
     capture_amount = 0
     try:
@@ -237,25 +239,26 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
                         capture_time = time.time()
                         q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
                         time.sleep(args.interval)
+                        barrier.wait()
                     else:
-                        current_wait_time += 1
+                        current_wait_time += args.check_interval
                         print(f"No Part detected, checking in every {args.check_interval} seconds, master cam: {cam_id}")
                         capture_all.clear()
                         if current_wait_time == args.wait_time:
+                            barrier.abort() # fixes the hanging barrier in the trigger_capture side
                             print(f"Waiting limit reached stopping.")
                             stop_engine()
                         time.sleep(args.check_interval)
                 else:
                     print(f"couldn't capture master")
+                    current_wait_time += args.check_interval # handling broken frames resetting wait duration problem
                     time.sleep(args.interval)
                 if not running.is_set():
+                    capture_all.clear()
                     break
             except Exception as e:
                 print(f"some error occured in trigger_master capturing: {e}")
                 traceback.print_exc()
-            finally:
-                print("waitting")
-                barrier.wait()
         delay_dict[cam_id] = time.time()
         cam.Close()
         print(f"Thread with cam_id {cam_id} stopped")
@@ -264,9 +267,12 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
         traceback.print_exc()
         # print(f"camera {cam_id} captured image in {time.time()}")
 
+# The function below is used to capture images from the camera.
+# It waits for the master camera to trigger, and then captures an image from its own camera and adds it to the queue.
 def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all, barrier:Barrier):
     """
-    Function to capture images from the camera. It gets triggered by the master thread to start capturing.
+    This thread waits for the master camera to trigger, then captures an image from its own camera and puts it in the queue.
+    It also synchronizes with the other cameras using a barrier.
     """
     capture_amount = 0
     try:
@@ -290,14 +296,12 @@ def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all, 
                         capture_amount += 1
                         q.put((img, cam_id, args.exposure_time, capture_amount, capture_time))
                         time.sleep(args.interval)
+                        barrier.wait()
                     delay_dict[cam_id] = time.time()
-                    # print(f"camera {cam_id} captured image in {time.time()}")
                 if not running.is_set():
                     break
             except Exception as e:
                 print(f"some bugs in trigger_and_capture capturing: {e}")
-            finally:
-                barrier.wait()
         cam.Close()
     except Exception as e:
         print(f"some bugs in trigger_and_capture: {e}")
@@ -327,9 +331,6 @@ def load_devices(args):
         return bca, cam_array, num_cams
     else:
         print(f"No devices found")
-    # except Exception as e:
-    #     print(f"An error in load_devices: {e}")
-        #pop_up_call(error_name="Another Client is Running", error_text="Please check other clients")
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -357,8 +358,8 @@ def update_status(engine_stopped):
 
 def stop_engine():
     global running
-    running.clear()
     update_status(True)
+    running.clear()
     print(f"stopped the engine")
 
 def run_engine(args):
@@ -370,7 +371,6 @@ def run_engine(args):
     bca, cam_array, num_cams = load_devices(args)
     cam_groups = bca.create_groups(args.group_size) # this is [(baslercam_array[0], py.InstantCameraArray[0])]'
     print(f"Devices are loaded, running")
-    update_status(False) # engine started
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
     run_devices(cam_groups=cam_groups, nums_cams=num_cams, args=args)
     cam_array.StopGrabbing()

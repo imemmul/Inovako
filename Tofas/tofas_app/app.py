@@ -1,3 +1,6 @@
+# TOFAS // last updated in 07.17.2023 Emir Ulurak emirulurak@gmail.com
+
+
 import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings
@@ -9,10 +12,7 @@ import argparse
 import time
 import sys
 
-# TODO more communication between engines DONE
-# TODO select one of the cameras and run grayish detection on it, if detected run inference for all cameras with args.interval interval. DONE
-# TODO device opened by other client error handlers (pop message notifi)
-# TODO parallel inference
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
@@ -36,30 +36,20 @@ def parse_args():
 args = parse_args()
 
 
-# TODO more clearer EngineThread
+# QThread class for running the engine in a separate thread
 class EngineThread(QThread):
+    # The run function is called when the thread starts
     def run(self):
-        if args.test_engine:
-            if args.test:
-                print(f"engine_v3 is running test")
-                time.sleep(1)
-                #engine_v3_parallel.run_test(args)
-            else:
-                engine_v3_parallel.run_engine(args)
-        else:
-            print(f"engine_v3 is running grouping")
-            engine_v3_grouping.run_engine(args)
+        # If test_engine flag is True, run test engine, otherwise run normal engine
+        # If test flag is True, run in test mode, otherwise run normally
+        # if args.test_engine:
+        print("running engine_v3_grouping")
+        engine_v3_grouping.run_engine(args)
+        
     def stop_engine_thread(self):
-        if args.test_engine:
-            if args.test:
-                print(f"engine_v3 is running test")
-                time.sleep(1)
-                #engine_test.stop_engine()
-            else:
-                engine_v3_parallel.stop_engine()
-        else:
-            # print(f"engine_v2 is running deployment")
-            engine_v3_grouping.stop_engine()
+        # if args.test_engine:
+        print("stopping engine_v3_grouping")
+        engine_v3_grouping.stop_engine()
 
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
@@ -167,9 +157,6 @@ class Inovako(QtWidgets.QMainWindow):
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Exposure Time')
 
-    def pop_up_message(self, error_name, error_text):
-        QMessageBox.information(self, error_name, error_text)
-
     def start_engine(self):
         self.engine_running = True
         self.backButton.hide()
@@ -213,10 +200,6 @@ class Inovako(QtWidgets.QMainWindow):
                 self.ins_time_stop = time.time()
                 self.stop_engine()
                 self.update_status(2)
-
-
-def pop_up_call(error_name, error_text):
-    window.pop_up_message(error_name, error_text)
 
 
 app = QtWidgets.QApplication(sys.argv)
