@@ -12,9 +12,10 @@ import argparse
 import time
 import sys
 
-# TODO status.txt should be in sync
+# TODO status.txt should be in "more" sync
 # TODO button - threads should be overcommunicated, so that app shouldn't crash. 
-
+# TODO should handle flow exceptions, crashes.
+# TODO PYQT6 signal slot ??
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
@@ -41,10 +42,13 @@ args = parse_args()
 # QThread class for running the engine in a separate thread
 class EngineThread(QThread):
     # The run function is called when the thread starts
+    engine_started = QtCore.pyqtSignal()
+    engine_stopped = QtCore.pyqtSignal()
     def run(self):
         # If test_engine flag is True, run test engine, otherwise run normal engine
         # If test flag is True, run in test mode, otherwise run normally
         # if args.test_engine:
+
         print("running engine_v3_grouping")
         engine_v3_grouping.run_engine(args)
         
@@ -139,11 +143,6 @@ class Inovako(QtWidgets.QMainWindow):
             self.index += 1
             self.display_image()
 
-    def sleep_button(self, button, sleep_time):
-        button.setEnabled(False)
-        time.sleep(sleep_time)
-        button.setEnabled(True)
-
     def start_stop_engine(self):
         if self.check_freq.value() != 0:
             args.check_interval = self.check_freq.value()
@@ -161,6 +160,7 @@ class Inovako(QtWidgets.QMainWindow):
                 categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposure=args.exposure_time)
                 self.ins_time_start = time.time()
                 self.start_engine()
+                self.update_status(0) # start signal
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Exposure Time')
 
@@ -173,7 +173,6 @@ class Inovako(QtWidgets.QMainWindow):
         self.buttonStart.setText("Durdur")
         self.engineThread = EngineThread()
         self.engineThread.start()
-        self.sleep_button(button=self.buttonStart, sleep_time=2)
 
     def format_time(self, ins_time):
         hours, remainder = divmod(ins_time, 3600)
@@ -195,20 +194,30 @@ class Inovako(QtWidgets.QMainWindow):
         self.buttonStart.setText("Baslat")
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
-        self.sleep_button(button=self.buttonStart, sleep_time=2)
 
     def update_status(self, text):
         with open('./status.txt', 'w') as f:
             f.write(str(text))
 
-    def check_engine_status(self):
+    def check_engine_status(self): # TODO more safer status checker needed
         with open('./status.txt', 'r') as f:
             status = f.read().strip()
             # print(f"checking status of engine got: {status}") 
-            if int(status) == 1:
-                self.ins_time_stop = time.time()
-                self.stop_engine()
-                self.update_status(2)
+            if int(status) == 2: # if ready to action
+                self.buttonStart.clicked.connect(self.start_stop_engine) # when it becomes ready to action status connect the button
+                if self.engine_running:
+                    self.ins_time_stop = time.time()
+                    self.update_status(1)
+                    self.stop_engine()
+                else:
+                    # NOTE probably this won't be called, the only way to start the code is buttonStart
+                    #self.ins_time_start = time.time()
+                    #self.start_engine()
+                    #self.update_status(0) # engine started dont touch
+                    #time.sleep(5)
+                    pass
+            else:
+                self.buttonStart.clicked.disconnect() # while the status is not ready for any action disconnect button
 
 
 app = QtWidgets.QApplication(sys.argv)
