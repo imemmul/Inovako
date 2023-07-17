@@ -3,8 +3,8 @@ import os
 
 CATEG_DET = ['DET', 'NO_DET']
 
-out_dir = "/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/"
-
+# out_dir = "/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/"
+out_dir = "/home/emir/Desktop/dev/Inovako/Inovako/Tofas/tofas_app/output/"
 def categorize_create_folder(out_dir, cams_name, exposure):
     paths = []
     selected_path = ''
