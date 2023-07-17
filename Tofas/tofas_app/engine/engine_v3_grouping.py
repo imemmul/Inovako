@@ -168,7 +168,7 @@ def run_devices(cam_groups, nums_cams, args):
     Starts running the connected devices and assigns threads to each device.
     Uses multiprocessing to create processes and assigns a separate thread to each camera device within that process.
     """
-    update_status(False) # engine started
+    update_status(2) # engine started and ready to action from now on any interaction is able to stop the engine
     cam_id = 0
     barrier = Barrier(nums_cams)
     inference_processes = []
@@ -250,6 +250,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
                         capture_all.clear()
                         if current_wait_time == args.wait_time:
                             barrier.abort() # fixes the hanging barrier in the trigger_capture side
+                            update_status(3)
                             print(f"Waiting limit reached stopping.")
                             stop_engine()
                         time.sleep(args.check_interval)
@@ -356,17 +357,17 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def update_status(engine_stopped):
+def update_status(command:int):
     with open('./status.txt', 'w') as f:
-        f.write(str(int(engine_stopped)))
+        f.write(str(command))
 
 def stop_engine():
     global running
-    update_status(True)
     running.clear()
     print(f"stopped the engine")
 
 def run_engine(args):
+    update_status(0) # starting process signal
     global running
     running = multiprocessing.Event()
     running.set()
@@ -377,6 +378,7 @@ def run_engine(args):
     print(f"Devices are loaded, running")
     cam_array.StartGrabbing(py.GrabStrategy_LatestImageOnly)
     run_devices(cam_groups=cam_groups, nums_cams=num_cams, args=args)
+    update_status(2) # ready to action
     cam_array.StopGrabbing()
 
 def list_devices(args):

@@ -7,15 +7,18 @@ from PyQt6.QtCore import QDir, QThread, QSettings
 from PyQt6.QtWidgets import QMessageBox
 from engine import engine_v3_parallel, engine_v3_single, engine_v3_grouping
 from engine.engine_v3_single import list_devices
+from engine.engine_v3_grouping import update_status
 from engine.categorize import categorize_create_folder
 import argparse
 import time
 import sys
-
-# TODO status.txt should be in "more" sync
+# NOTE status 0 = engine is running, status 1= engine is stopping, status 2 = engine is ready to take action.
+# TODO status.txt should be in "more" sync and faster, now around 500ms is okay but still crashes
 # TODO button - threads should be overcommunicated, so that app shouldn't crash. 
 # TODO should handle flow exceptions, crashes.
 # TODO PYQT6 signal slot ??
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
@@ -87,7 +90,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
         self.image_name = self.findChild(QtWidgets.QLabel, 'image_name')
         # Connect signals and slots
-        self.update_status(2)
+        update_status(2)
         self.backButton.clicked.connect(self.previous_image)
         self.forwardButton.clicked.connect(self.next_image)
         self.folderButton.clicked.connect(self.select_folder)
@@ -99,7 +102,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.ins_time_stop = 0
         self.status_check_timer = QtCore.QTimer()
         self.status_check_timer.timeout.connect(self.check_engine_status)
-        self.status_check_timer.start(100)
+        self.status_check_timer.start(1000) # too slow ????? 
     
     def filter_selection_cam(self, cam_id):
         args.filter_cam = list_devices(args)[cam_id]
@@ -114,7 +117,6 @@ class Inovako(QtWidgets.QMainWindow):
     def get_exposure_time(self, run_id):
         expo_path = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + "/" 
         return os.listdir(expo_path)[0]
-
     def select_folder(self):
         run_id = len(os.listdir(args.out_dir))
         current_directory = args.out_dir + f"run_{run_id}/" + self.filter_select_cam.currentText() + f"/{self.get_exposure_time(run_id=run_id)}" + "/DET/"
@@ -154,13 +156,15 @@ class Inovako(QtWidgets.QMainWindow):
             args.exposure_time = self.exposure_time.value()
             # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
+                print(f"why am i here ?")
                 self.ins_time_stop = time.time()
+                update_status(1) # stopping process signal
                 self.stop_engine()
             else:
                 categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposure=args.exposure_time)
                 self.ins_time_start = time.time()
+                update_status(command=0) # start process signal
                 self.start_engine()
-                self.update_status(0) # start signal
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Exposure Time')
 
@@ -195,29 +199,23 @@ class Inovako(QtWidgets.QMainWindow):
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
 
-    def update_status(self, text):
-        with open('./status.txt', 'w') as f:
-            f.write(str(text))
 
     def check_engine_status(self): # TODO more safer status checker needed
         with open('./status.txt', 'r') as f:
             status = f.read().strip()
-            # print(f"checking status of engine got: {status}") 
-            if int(status) == 2: # if ready to action
-                self.buttonStart.clicked.connect(self.start_stop_engine) # when it becomes ready to action status connect the button
-                if self.engine_running:
-                    self.ins_time_stop = time.time()
-                    self.update_status(1)
-                    self.stop_engine()
-                else:
-                    # NOTE probably this won't be called, the only way to start the code is buttonStart
-                    #self.ins_time_start = time.time()
-                    #self.start_engine()
-                    #self.update_status(0) # engine started dont touch
-                    #time.sleep(5)
-                    pass
-            else:
-                self.buttonStart.clicked.disconnect() # while the status is not ready for any action disconnect button
+            print(f"checking status of engine got: {status}")
+            if int(status) == 3: # if stop signal interrupt comes from the engine
+                self.ins_time_stop = time.time()
+                update_status(1)
+                self.stop_engine()
+                time.sleep(2) # wait for to stop
+                update_status(2) # ready to action 
+            elif int(status) == 1 or int(status) == 0: # if it is in action
+                self.buttonStart.setEnabled(False)
+                # self.buttonStart.clicked.disconnect() # while the status is not ready for any action disconnect button
+            else: # if status is 2
+                self.buttonStart.setEnabled(True)
+                # self.buttonStart.clicked.connect(self.start_stop_engine)
 
 
 app = QtWidgets.QApplication(sys.argv)
