@@ -13,11 +13,11 @@ import time
 import sys
 
 # TODO status.txt should be in sync
-
+# TODO button - threads should be overcommunicated, so that app shouldn't crash. 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('--filter-cam', type=str)
     parser.add_argument('--filter-expo', type=str)
     parser.add_argument('--master', type=int, default=0)
-    parser.add_argument('--group-size', type=int, default=1) # TODO change this with 2
+    parser.add_argument('--group-size', type=int, default=2) # TODO change this with 2
     parser.add_argument('--wait-time', type=int, default=10)
     args = parser.parse_args()
     return args
@@ -139,6 +139,11 @@ class Inovako(QtWidgets.QMainWindow):
             self.index += 1
             self.display_image()
 
+    def sleep_button(self, button, sleep_time):
+        button.setEnabled(False)
+        time.sleep(sleep_time)
+        button.setEnabled(True)
+
     def start_stop_engine(self):
         if self.check_freq.value() != 0:
             args.check_interval = self.check_freq.value()
@@ -168,6 +173,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.buttonStart.setText("Durdur")
         self.engineThread = EngineThread()
         self.engineThread.start()
+        self.sleep_button(button=self.buttonStart, sleep_time=2)
 
     def format_time(self, ins_time):
         hours, remainder = divmod(ins_time, 3600)
@@ -189,6 +195,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.buttonStart.setText("Baslat")
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
+        self.sleep_button(button=self.buttonStart, sleep_time=2)
 
     def update_status(self, text):
         with open('./status.txt', 'w') as f:
