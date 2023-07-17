@@ -12,6 +12,8 @@ import argparse
 import time
 import sys
 
+# TODO status.txt should be in sync
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
