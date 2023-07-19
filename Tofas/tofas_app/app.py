@@ -1,5 +1,5 @@
-# TOFAS // last updated in 07.18.2023 Emir Ulurak emirulurak@gmail.com
-
+# TOFAS // last updated in 07.19.2023 Emir Ulurak emirulurak@gmail.com
+# UPDATE NOTES: some update_status function calls are deleted and added.
 import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
 from PyQt6.QtCore import QDir, QThread, QSettings

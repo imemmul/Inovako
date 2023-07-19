@@ -2,7 +2,8 @@
 # The libraries are used for image processing, parallel processing, time manipulation, 
 # error handling, argument parsing, etc.
 
-# TOFAS MAIN ENGINE // last updated in 07.17.2023 Emir Ulurak emirulurak@gmail.com
+# TOFAS MAIN ENGINE // last updated in 07.19.2023 Emir Ulurak emirulurak@gmail.com
+# UPDATE NOTES: some update_status function calls are deleted and added.
 
 import pypylon.pylon as py
 import time
