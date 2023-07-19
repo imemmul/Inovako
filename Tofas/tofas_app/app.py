@@ -1,5 +1,4 @@
-# TOFAS // last updated in 07.17.2023 Emir Ulurak emirulurak@gmail.com
-
+# TOFAS // last updated in 07.18.2023 Emir Ulurak emirulurak@gmail.com
 
 import os
 from PyQt6 import QtWidgets, uic, QtGui, QtCore
@@ -12,13 +11,15 @@ from engine.categorize import categorize_create_folder
 import argparse
 import time
 import sys
-# NOTE status 0 = engine is running, status 1= engine is stopping, status 2 = engine is ready to take action.
-# TODO status.txt should be in "more" sync and faster, now around 500ms is okay but still crashes
+
+# NOTE status 0 = engine is running, status 1= engine is stopping, status 2 = engine is ready to take action status 3 = forced stop (probably stopped by timed out in engine)
+# TODO status.txt should be in "more" sync and faster, socket, pipe etc.
 # TODO button - threads should be overcommunicated, so that app shouldn't crash. 
 # TODO should handle flow exceptions, crashes.
 # TODO PYQT6 signal slot ??
+# TODO display images simultaneosly with captures
 
-
+# below args just storing the parameters
 def parse_args():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
@@ -46,13 +47,13 @@ args = parse_args()
 # QThread class for running the engine in a separate thread
 class EngineThread(QThread):
     # The run function is called when the thread starts
+    # TODO better slot signal mechanism
     engine_started = QtCore.pyqtSignal()
     engine_stopped = QtCore.pyqtSignal()
     def run(self):
         # If test_engine flag is True, run test engine, otherwise run normal engine
         # If test flag is True, run in test mode, otherwise run normally
         # if args.test_engine:
-
         print("running engine_v3_grouping")
         engine_v3_grouping.run_engine(args)
         
@@ -60,6 +61,7 @@ class EngineThread(QThread):
         # if args.test_engine:
         print("stopping engine_v3_grouping")
         engine_v3_grouping.stop_engine()
+        self.engine_stopped.emit()
 
 class Inovako(QtWidgets.QMainWindow):
     def __init__(self):
@@ -103,7 +105,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.ins_time_stop = 0
         self.status_check_timer = QtCore.QTimer()
         self.status_check_timer.timeout.connect(self.check_engine_status)
-        self.status_check_timer.start(100) # too slow ????? 
+        self.status_check_timer.start(10) # 100ms 0.1 sec check status
     
     def filter_selection_cam(self, cam_id):
         args.filter_cam = list_devices(args)[cam_id]
@@ -158,21 +160,21 @@ class Inovako(QtWidgets.QMainWindow):
             # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
                 self.buttonStart.clicked.disconnect()
-                self.buttonStart.clicked.connect(self.pop_status_engine)
+                self.buttonStart.clicked.connect(lambda: self.pop_status_engine("Engine is stopping", "Please wait, engine is stopping."))
                 self.ins_time_stop = time.time()
-                update_status(command=1) # stopping process signal
+                # update_status(command=1) # stopping process signal
                 self.stop_engine()
-                time.sleep(2)
-                update_status(2) # engine started and ready to action from now on any interaction is able to stop the engine
+                # time.sleep(3)
+                # update_status(2) # engine started and ready to action from now on any interaction is able to stop the engine
             else:
                 self.buttonStart.clicked.disconnect()
-                self.buttonStart.clicked.connect(self.pop_status_engine)
+                self.buttonStart.clicked.connect(lambda: self.pop_status_engine("Engine is running", "Please wait, engine is running."))
                 categorize_create_folder(out_dir=args.out_dir, cams_name=list_devices(args), exposure=args.exposure_time)
                 self.ins_time_start = time.time()
-                update_status(command=0) # start process signal
+                # update_status(command=0) # start process signal
                 self.start_engine()
                 time.sleep(2)
-                update_status(2) # engine started and ready to action from now on any interaction is able to stop the engine
+                # update_status(2) # engine started and ready to action from now on any interaction is able to stop the engine
                 
         else:
             QMessageBox.information(self, 'Exposure Error', 'Please Enter Exposure Time')
@@ -208,8 +210,8 @@ class Inovako(QtWidgets.QMainWindow):
         ins_time = self.ins_time_stop - self.ins_time_start
         self.ins_time_widget.setText(self.format_time(ins_time=ins_time))
 
-    def pop_status_engine(self):
-        QMessageBox.information(self, 'Engine Warning', 'Engine is running, please try again.')
+    def pop_status_engine(self, warning, warning_desc):
+        QMessageBox.information(self, warning, warning_desc)
     def check_engine_status(self): # TODO more safer status checker needed
         with open('./status.txt', 'r') as f:
             status = f.read().strip()
@@ -217,15 +219,11 @@ class Inovako(QtWidgets.QMainWindow):
             if status:
                 if int(status) == 3: # if stop signal interrupt comes from the engine
                     self.ins_time_stop = time.time()
-                    # update_status(1)
+                    self.pop_status_engine(warning="Timed Out", warning_desc=f"It's been {args.wait_time} seconds, engine is stopped.")
                     self.stop_engine()
-                    time.sleep(2) # wait for to stop
-                    update_status(2) # ready to action 
                 elif int(status) == 1 or int(status) == 0: # if it is in action
-                    self.buttonStart.setEnabled(False)# while the status is not ready for any action disconnect button
-                    # self.buttonStart.clicked.disconnect()
+                    self.buttonStart.clicked.disconnect() 
                 else: # if status is 2
-                    self.buttonStart.setEnabled(True)
                     self.buttonStart.clicked.disconnect()
                     self.buttonStart.clicked.connect(self.start_stop_engine)
 

@@ -85,7 +85,6 @@ def augment_data(dir, target_dir):
             iaa.GaussianBlur(sigma=(0, 0.1))
         ),  # Gaussian blur for 10% of the images
         iaa.AdditiveGaussianNoise(scale=(0, 0.05*255)),
-        iaa.AddToHueAndSaturation((-50, 50), per_channel=True),
         iaa.ChannelShuffle(1.0),
         iaa.Affine(rotate=(-25, 25))
     ], random_order=True)

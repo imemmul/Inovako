@@ -56,7 +56,7 @@ class BaslerCameraArray():
             # Note: This is an example configuration, the exact settings will depend on your use case.
             cam.SetCameraContext(idx)
             cam.ExposureTime.SetValue(int(args.exposure_time))  # Set exposure time for the camera.
-            cam.PixelFormat.SetValue('Mono8')  # Set pixel format to Mono8.
+            cam.PixelFormat.SetValue('Mono8')  # Set pixel format to Mono8. 2D 2000x2000
             cam.TriggerSelector = "FrameStart"  # Selects the kind of trigger to configure.
             cam.TriggerMode.SetValue('On')  # Turns triggering mode on.
             cam.TriggerSource.SetValue('Software')  # The source that triggers the acquisition.
@@ -93,9 +93,11 @@ def run_inference(q:Queue, group_id, args, running, devices):
     Creates TensorRT engines with assigned groups and inference each image captured from that group cameras.
     """
     try:
+        update_status(0)
         engine, device, H, W  = load_engine(args)
         run_id = len(os.listdir(args.out_dir))
         print(f"running inference group: {group_id}")
+        update_status(2) # ready to take action
         while True:
             try:
                 # print(f"QUEUE SIZE OF cam:{cam_id}: {q.qsize()}")
@@ -150,6 +152,7 @@ def run_inference(q:Queue, group_id, args, running, devices):
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
                 # print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
                 if not running.is_set() and q.qsize() == 0:
+                    update_status(1)
                     break
             except Exception as e:
                 print(f"Some error occured in run_inference with cam_id:{cam_id}: {e}")
@@ -194,7 +197,6 @@ def run_devices(cam_groups, nums_cams, args):
             except Exception as e:
                 print(f"some error occured in thread pool: {e}")
                 traceback.print_exc()
-        update_status(2)
     executor.shutdown(wait=True)  # Stop the executor
     for p_id, p in enumerate(inference_processes):
         if p.is_alive(): # If the process is still running, terminate it
@@ -260,6 +262,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
                     time.sleep(args.interval)
                 if not running.is_set():
                     capture_all.clear()
+                    update_status(1)
                     break
             except Exception as e:
                 print(f"some error occured in trigger_master capturing: {e}")
@@ -304,6 +307,7 @@ def trigger_and_capture(args, cam, cam_id, running, q, delay_dict, capture_all, 
                         barrier.wait()
                     delay_dict[cam_id] = time.time()
                 if not running.is_set():
+                    update_status(1)
                     break
             except Exception as e:
                 print(f"some bugs in trigger_and_capture capturing: {e}")
@@ -362,11 +366,9 @@ def update_status(command:int):
         f.write(str(command))
 
 def stop_engine():
-    global running
     update_status(1)
+    global running
     running.clear()
-    time.sleep(2)
-    update_status(2)
     print(f"stopped the engine")
 
 def run_engine(args):
