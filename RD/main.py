@@ -6,6 +6,8 @@ from models.torch_utils import seg_postprocess
 from models.utils import blob, letterbox
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import traceback
 # 13 14 is a good example to apply matching algoritm
 # Basler_a2A2600-64umBAS__40359001__20230713_185427266_0012.tiff
@@ -28,15 +30,15 @@ def load_engine():
 
 
 def find_match(img1, img2):
-    # Initialize the ORB detector algorithm
+    # Initialize the SURF detector algorithm
     orb = cv2.ORB_create()
 
-    # Find keypoints and descriptors with ORB
+    # Find keypoints and descriptors with SURF
     kp1, des1 = orb.detectAndCompute(img1, None)
     kp2, des2 = orb.detectAndCompute(img2, None)
 
     # create BFMatcher object
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
     # Match descriptors.
     matches = bf.match(des1, des2)
@@ -81,8 +83,8 @@ def run_inference(conf_thres, iou_thres):
                 
                 if len(bboxes) == 0:
                     # print(f"trying to save no_det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/NO_DET/output_{capture_id}.jpg")
-                    cv2.imwrite(filename=f"./output/output_{count}_NO_DET.jpg", img=image)
-                    #print(f"nothing detected")
+                    # cv2.imwrite(filename=f"./output/output_{count}_NO_DET.jpg", img=image)
+                    print(f"nothing detected")
                 else:
                     print(f"what is bboxes type: {type(bboxes)}")
                     random_index = np.random.randint(0, len(bboxes) - 1)
@@ -114,7 +116,7 @@ def run_inference(conf_thres, iou_thres):
                                 thickness=2)
                     # print(f"image saved")
                     img2 = cv2.imread(dataset_dir[1])
-                    margin = 200
+                    margin = 100
                     margine_bbox = bbox.copy()
                     # Ensure bbox is within image boundaries
                     margine_bbox[0] = max(0, bbox[0] - margin)  # x1
@@ -149,5 +151,69 @@ def run_inference(conf_thres, iou_thres):
         print(f"Error in inference: {e}")
 
 
+def find_keypoints_and_matches(img1, img2):
+    sift = cv2.SIFT_create()
+
+    kp1, des1 = sift.detectAndCompute(img1,None)
+    kp2, des2 = sift.detectAndCompute(img2,None)
+
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des1, des2, k=2)
+
+    good = []
+    pts1 = []
+    pts2 = []
+
+    for m,n in matches:
+        if m.distance < 0.75*n.distance:
+            good.append([m])
+            pts2.append(kp2[m.trainIdx].pt)
+            pts1.append(kp1[m.queryIdx].pt)
+
+    pts1 = np.int32(pts1)
+    pts2 = np.int32(pts2)
+
+    return pts1, pts2, good
+
+def calculate_pose(img1, img2):
+    pts1, pts2, matches = find_keypoints_and_matches(img1, img2)
+
+    F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_8POINT)
+
+    pts1 = pts1[mask.ravel() == 1]
+    pts2 = pts2[mask.ravel() == 1]
+
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera([pts1], [pts2], img1.shape[::-1], None, None)
+
+    R1, R2, P1, P2, Q, validPixROI1, validPixROI2 = cv2.stereoRectify(mtx, dist, mtx, dist, img1.shape[::-1], R1, T, flags=0)
+
+    map1, map2 = cv2.initUndistortRectifyMap(mtx, dist, R1, P1, img1.shape[::-1], cv2.CV_32FC1)
+
+    img1_rectified = cv2.remap(img1, map1, map2, cv2.INTER_LINEAR)
+    img2_rectified = cv2.remap(img2, map1, map2, cv2.INTER_LINEAR)
+
+    disparity = cv2.StereoBM_create(numDisparities=16, blockSize=15).compute(img1_rectified, img2_rectified)
+
+    points = cv2.reprojectImageTo3D(disparity, Q)
+    
+    return points
+
+def plot_3d_points(points):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    x = points[:, :, 0].flatten()
+    y = points[:, :, 1].flatten()
+    z = points[:, :, 2].flatten()
+
+    ax.scatter(x, y, z)
+    plt.show()
+
+
+
 if __name__ == "__main__":
-    run_inference(conf_thres=0.25, iou_thres=0.65)
+    # run_inference(conf_thres=0.25, iou_thres=0.65)
+    # read images
+    img1 = cv2.imread(dataset_dir[0], 0)
+    img2 = cv2.imread(dataset_dir[1], 0)
+    points = calculate_pose(img1, img2)
