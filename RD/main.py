@@ -31,7 +31,7 @@ def load_engine():
 
 def find_match(img1, img2):
     # Initialize the SURF detector algorithm
-    orb = cv2.ORB_create()
+    orb = cv2.SIFT_create()
 
     # Find keypoints and descriptors with SURF
     kp1, des1 = orb.detectAndCompute(img1, None)
