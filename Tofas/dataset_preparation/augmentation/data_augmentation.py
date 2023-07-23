@@ -9,17 +9,43 @@ import os
 from imgaug.augmentables.polys import Polygon, PolygonsOnImage
 from imgaug.parameters import Uniform
 
-OUTPUT_DIR = "/home/emir/Desktop/dev/Inovako/projet_secret/augmented_dataset/"
-INPUT_DIR = "../dataset/"
+OUTPUT_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/dataset_tofas_augmented/"
+INPUT_DIR = "/home/emir/Desktop/dev/Inovako/dataset_tofas/tofas_main/"
+
+# TODO iaa.RandomCrop 
+def convert_dataset_class(annot_dir):
+    with open(annot_dir) as f:
+        lines = f.read().splitlines()
+    new_lines = []
+    for line in lines:
+        info = line.split()
+        # print(not bool(int(info[0])))
+        if not bool(int(info[0])):
+        #    print(f"old class is {info[0]}")
+           info[0] = str(1)
+        #    print(f"old class is {str(1)}")
+        # print(info)
+        new_line = ' '.join(info)
+        new_lines.append(new_line + '\n')
+        # print(info)
+   
+    with open(annot_dir, 'w') as f:
+        f.writelines(new_lines)
+
+
+
 
 def draw_annotations(img_dir, annot_dir, aug:bool):
 
-    # Load your image
-    img = cv2.imread(img_dir)
+    print(img_dir)
+    img = cv2.imread(img_dir, 0)
+
+    print(f"img_shape: {img.shape}")
     img_height, img_width = img.shape[:2]
-
-
+    print(f"img_height: {img_height}")
+    print(f"img_width: {img_width}")
     # Open your text file
+
     with open(annot_dir) as f:
         lines = f.read().splitlines()
 
@@ -30,17 +56,16 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
         for line in lines:
             parts = line.split()
             cls = int(parts[0])
+            print(f"what is class: {cls}")
             points = np.array(parts[1:], dtype=np.float32)
             points = [(float(points[i]), float(points[i+1])) for i in range(0, len(points), 2)] # making them x,y pairs
             # print(f"points {points}")
             poly = [Polygon(points, label=cls)]
             # print(f" what is class {cls}")
-            if 2 == cls:
-                clr = (255, 0, 0)
-            elif 1 == cls:
+            if bool(cls): # cls == 1 hole
                 clr = (0, 255, 0)
-            else:
-                clr = (0, 0, 255)
+            else: # cls == 0  crack
+                clr(255, 0, 0)
             # print(f"what is color {clr}")
             polys_oi = PolygonsOnImage(poly, shape=img.shape)
             
@@ -48,13 +73,13 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
         plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         plt.axis('off')
         plt.show()
-        print(f"img shape {img.shape}")
+        # print(f"img shape {img.shape}")
     else:
         for line in lines:
             parts = line.split()
             cls = int(parts[0])
             points = np.array(parts[1:], dtype=np.float32)
-            points = [(float(points[i])*img_height, float(points[i+1])*img_width) for i in range(0, len(points), 2)] # making them x,y pairs
+            points = [(float(points[i])*img_width, float(points[i+1])*img_height) for i in range(0, len(points), 2)] # making them x,y pairs
             # print(f"points {points}")
             poly = [Polygon(points, label=cls)]
             # print(f" what is class {cls}")
@@ -72,7 +97,6 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
         plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         plt.axis('off')
         plt.show()
-    
 
 import os
 def augment_data(dir, target_dir):
@@ -85,8 +109,8 @@ def augment_data(dir, target_dir):
             iaa.GaussianBlur(sigma=(0, 0.1))
         ),  # Gaussian blur for 10% of the images
         iaa.AdditiveGaussianNoise(scale=(0, 0.05*255)),
-        iaa.ChannelShuffle(1.0),
         iaa.Affine(rotate=(-25, 25))
+        
     ], random_order=True)
 
     # Specify the paths to your images and masks
