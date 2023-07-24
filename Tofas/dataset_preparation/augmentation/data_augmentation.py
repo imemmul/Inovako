@@ -157,10 +157,12 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
             # print(f"points {points}")
             poly = [Polygon(points, label=cls)]
             # print(f" what is class {cls}")
-            if bool(cls): # cls == 1 hole
+            if 2 == cls:
+                clr = (255, 0, 0)
+            elif 1 == cls:
                 clr = (0, 255, 0)
-            else: # cls == 0  crack
-                clr(255, 0, 0)
+            else:
+                clr = (0, 0, 255)
             # print(f"what is color {clr}")
             polys_oi = PolygonsOnImage(poly, shape=img.shape)
             
@@ -196,6 +198,7 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
 import os
 def augment_data(dataset_dir, augment_dir):
     aug = iaa.Sequential([
+        iaa.Resize({"height": 864, "width": 864}),
         iaa.Fliplr(0.5),  # horizontal flips
         iaa.Flipud(0.2),  # vertical flips
         iaa.Affine(
@@ -204,9 +207,6 @@ def augment_data(dataset_dir, augment_dir):
             rotate=(-45, 45),  # rotate by -45 to +45 degrees
             shear=(-16, 16),  # shear by -16 to +16 degrees
         ),  
-        iaa.PiecewiseAffine(scale=(0.01, 0.05)),  # sometimes distort images locally by moving some pixel blocks
-        iaa.PerspectiveTransform(scale=(0.01, 0.1)),  # perform transformations that simulate camera movements
-        iaa.Resize({"height": 864, "width": 864})
     ], random_order=True)
 
     splits = ["train", "valid", "test"]
@@ -218,19 +218,20 @@ def augment_data(dataset_dir, augment_dir):
                 # Read image
                 img = cv2.imread(os.path.join(f"{dataset_dir}{split}/images/", filename))
                 img_height, img_width = img.shape[:2]
+                print(img_height)
+                print(img_width)
                 path_to_polygons = os.path.join(f"{dataset_dir}{split}/labels/", f"{filename[:-3]}txt")
                 with open(path_to_polygons, 'r') as file:
                     lines = file.readlines()
-                    polygons = [Polygon([(float(coord.split()[i])*img_height, float(coord.split()[i+1])*img_width) 
+                    polygons = [Polygon([(float(coord.split()[i])*img_width, float(coord.split()[i+1])*img_height) 
                                             for i in range(1, len(coord.split()), 2)], label=coord.split()[0]) 
                                     for coord in lines]
-                augment_count = 100  # default count
+                augment_count = 10  # default count
                 for polygon in polygons:
                     if polygon.label == "0":  # or use '0' if your labels are strings
-                        print(f"crack class founded augmenting 300 times.")
-                        augment_count = 300  # the count for the desired class
+                        augment_count = 50  # the count for the desired class
                         break
-
+                print(f"augment count is : {augment_count}.")
                 for i in range(augment_count):
                     img_aug, polygons_aug = aug(image=img, polygons=PolygonsOnImage(polygons, shape=img.shape))
                     # polygons_aug = polygons_aug.clip_out_of_image()
@@ -242,7 +243,7 @@ def augment_data(dataset_dir, augment_dir):
                         coords = polygon.exterior
                         # print(f"what is polygons: {coords}")
                         label = polygon.label
-                        if all(0 <= point[0] < img.shape[1] and 0 <= point[1] < img.shape[0] for point in coords):
+                        if all(0 <= point[0] < 864 and 0 <= point[1] < 864 for point in coords):
                             # print(f"what is label {label}")
                             valid_polygons.append(polygon)
                             valid_labels.append(label)
@@ -257,19 +258,16 @@ def augment_data(dataset_dir, augment_dir):
                     cv2.imwrite(os.path.join(f"{augment_dir}{split}/images/", f"{filename[:-4]}_aug_{i}.jpg"), img_aug)
                     print(f"saving image to {img_save_dir}")
                     # Convert PolygonsOnImage object to polygons and save
-                    polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0]))+' '+str(float(coord[1])) for coord in polygons_aug.exterior])}"
+                    polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0])/864)+' '+str(float(coord[1])/864) for coord in polygons_aug.exterior])}"
                                         for polygons_aug, cls in zip(polygons_aug.polygons, valid_labels)]
                     annot_save_dir = os.path.join(f"{augment_dir}{split}/labels/", f"{filename[:-4]}_aug_{i}.txt")
                     with open(os.path.join(f"{augment_dir}{split}/labels/", f"{filename[:-4]}_aug_{i}.txt"), 'w') as file:
                         print(f"saving image to {annot_save_dir}")
                         file.write('\n'.join(polygons_aug_txt))
+                    # draw_annotations(img_dir=img_save_dir, annot_dir=annot_save_dir, aug=True)
     
 if __name__ == "__main__":
     dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas/"
     splits = ["train", "valid", "test"]
     augment_dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas/"
-    for split in splits:
-        for dir in os.listdir(f"{dataset_dir}{split}/images/"):
-            img_dir = os.path.join(f"{dataset_dir}{split}/images/", dir)
-            annot_dir = f"{dataset_dir}{split}/labels/{dir[:-3]}txt"
-            augment_data(dataset_dir=dataset_dir, augment_dir=augment_dataset_dir)
+    augment_data(dataset_dir=dataset_dir, augment_dir=augment_dataset_dir)
