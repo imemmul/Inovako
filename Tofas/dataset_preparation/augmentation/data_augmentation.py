@@ -6,13 +6,61 @@ import imgaug.augmenters as iaa
 import imgaug as ia
 import cv2
 import os
+import imageio
 from imgaug.augmentables.polys import Polygon, PolygonsOnImage
 from imgaug.parameters import Uniform
 
-OUTPUT_DIR = "/home/emir/Desktop/dev/Inovako/Inovako/dataset_tofas_augmented/"
-INPUT_DIR = "/home/emir/Desktop/dev/Inovako/dataset_tofas/tofas_main/"
+OUTPUT_DIR = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas/"
+INPUT_DIR = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas/"
 
-# TODO iaa.RandomCrop 
+def read_annotation_file(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    annotations = []
+    for line in lines:
+        # Split the line into numbers
+        numbers = list(map(float, line.split()))
+        
+        # The first number is the class ID, the rest are coordinates
+        class_id = int(numbers[0])
+        coordinates = numbers[1:]
+
+        annotations.append([class_id] + coordinates)
+    
+    return annotations
+
+def adjust_annotations(original_image_width, original_image_height, original_annotations, crop_box, crop_size):
+    adjusted_annotations = []
+
+    for annotation in original_annotations:
+        class_id = annotation[0]
+        polygon_points = annotation[1:]
+
+        adjusted_polygon = [class_id]
+
+        for i in range(0, len(polygon_points), 2):
+            # Convert to pixel coordinates
+            x_point = polygon_points[i] * original_image_width
+            y_point = polygon_points[i+1] * original_image_height
+
+            # Adjust coordinates
+            x_point -= crop_box[0]
+            y_point -= crop_box[1]
+
+            # Check if point is within the crop
+            if 0 < x_point < crop_size[0] and 0 < y_point < crop_size[1]:
+                # Normalize coordinates
+                x_point /= crop_size[0]
+                y_point /= crop_size[1]
+                
+                adjusted_polygon.extend([x_point, y_point])
+        
+        if len(adjusted_polygon) > 3:  # Only include polygons with at least one point inside the crop
+            adjusted_annotations.append(adjusted_polygon)
+
+    return adjusted_annotations
+
 def convert_dataset_class(annot_dir):
     with open(annot_dir) as f:
         lines = f.read().splitlines()
@@ -32,13 +80,60 @@ def convert_dataset_class(annot_dir):
     with open(annot_dir, 'w') as f:
         f.writelines(new_lines)
 
+from PIL import Image
+def crop_images_and_annotations(img_dir, annotation_dir, output_dir):
+    # Open an image file
+    with Image.open(img_dir) as img:
+        width, height = img.size
+        print(f"width: {width}")
+        print(f"heights: {height}")
 
+        # Define your step sizes
+        x_step = 640 - 150
+        y_step = 640 - 144
 
+        # Define your crop box size
+        box_size = (640, 640)
+
+        # Read the original annotations
+        original_annotations = read_annotation_file(annotation_dir)
+
+        fig, axs = plt.subplots(4, 5, figsize=(20, 20))
+
+        x_count = 0
+        for i in range(0, width-150, x_step):
+            y_count = 0
+            for j in range(0, height-144, y_step):
+                box = (i, j, i + box_size[0], j + box_size[1])
+                crop_img = img.crop(box)
+                axs[y_count, x_count].imshow(crop_img)
+                axs[y_count, x_count].axis('off')
+                axs[y_count, x_count].set_title(f'Cropped Image: {y_count}_{x_count}')
+
+                # Define the output paths for the cropped image and annotation file
+                img_output_path = os.path.join(output_dir, f'crop_{y_count}_{x_count}.jpg')
+                annotation_output_path = os.path.join(output_dir, f'crop_{y_count}_{x_count}.txt')
+
+                # Save the cropped image
+                crop_img.save(img_output_path)
+
+                # Adjust the annotations for the crop
+                adjusted_annotations = adjust_annotations(original_image_height=height, original_image_width=width, original_annotations=original_annotations, crop_box=box, crop_size=box_size)
+
+                # Write the adjusted annotations to a new file
+                with open(annotation_output_path, 'w') as file:
+                    for annotation in adjusted_annotations:
+                        # Join the numbers in the annotation into a string, with spaces in between
+                        line = ' '.join(map(str, annotation))
+                        file.write(line + '\n')
+
+                y_count += 1
+            x_count += 1
 
 def draw_annotations(img_dir, annot_dir, aug:bool):
 
     print(img_dir)
-    img = cv2.imread(img_dir, 0)
+    img = cv2.imread(img_dir)
 
     print(f"img_shape: {img.shape}")
     img_height, img_width = img.shape[:2]
@@ -99,72 +194,82 @@ def draw_annotations(img_dir, annot_dir, aug:bool):
         plt.show()
 
 import os
-def augment_data(dir, target_dir):
+def augment_data(dataset_dir, augment_dir):
     aug = iaa.Sequential([
-        iaa.Fliplr(0.5),
-        iaa.Flipud(0.2),
-        iaa.Affine(scale=Uniform(0.5, 1.5)),
-        iaa.Multiply((0.8, 1.2)),
-        iaa.Sometimes(0.5,
-            iaa.GaussianBlur(sigma=(0, 0.1))
-        ),  # Gaussian blur for 10% of the images
-        iaa.AdditiveGaussianNoise(scale=(0, 0.05*255)),
-        iaa.Affine(rotate=(-25, 25))
-        
+        iaa.Fliplr(0.5),  # horizontal flips
+        iaa.Flipud(0.2),  # vertical flips
+        iaa.Affine(
+            scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},  # zoom in & zoom out with scale of 0.8 to 1.2 times.
+            translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},  # translate by -20 to +20 percent (per axis)
+            rotate=(-45, 45),  # rotate by -45 to +45 degrees
+            shear=(-16, 16),  # shear by -16 to +16 degrees
+        ),  
+        iaa.PiecewiseAffine(scale=(0.01, 0.05)),  # sometimes distort images locally by moving some pixel blocks
+        iaa.PerspectiveTransform(scale=(0.01, 0.1)),  # perform transformations that simulate camera movements
+        iaa.Resize({"height": 864, "width": 864})
     ], random_order=True)
 
-    # Specify the paths to your images and masks
-    path_to_images = f"{dir}images/"
-    path_to_polygons = f"{dir}labels/"
+    splits = ["train", "valid", "test"]
     # Process each image
-    for filename in os.listdir(path_to_images):
-    # filename = "v2-2-2-_bmp.rf.a6319e97b2af489206fd056d9f7f6c15.jpg"
-        if filename.endswith(".jpg") or filename.endswith(".png"):
-            # Read image
-            img = cv2.imread(os.path.join(path_to_images, filename))
-            img_height, img_width = img.shape[:2]
-            # Read corresponding polygon points
-            with open(os.path.join(path_to_polygons, filename.rsplit(".", 1)[0] + ".txt"), 'r') as file:
-                lines = file.readlines()
-                polygons = [Polygon([(float(coord.split()[i])*img_height, float(coord.split()[i+1])*img_width) 
-                                        for i in range(1, len(coord.split()), 2)], label=coord.split()[0]) 
-                                for coord in lines]
+    for split in splits:
+        for filename in os.listdir(f"{dataset_dir}{split}/images/"):
+        # filename = "v2-2-2-_bmp.rf.a6319e97b2af489206fd056d9f7f6c15.jpg"
+            if filename.endswith(".jpg"):
+                # Read image
+                img = cv2.imread(os.path.join(f"{dataset_dir}{split}/images/", filename))
+                img_height, img_width = img.shape[:2]
+                path_to_polygons = os.path.join(f"{dataset_dir}{split}/labels/", f"{filename[:-3]}txt")
+                with open(path_to_polygons, 'r') as file:
+                    lines = file.readlines()
+                    polygons = [Polygon([(float(coord.split()[i])*img_height, float(coord.split()[i+1])*img_width) 
+                                            for i in range(1, len(coord.split()), 2)], label=coord.split()[0]) 
+                                    for coord in lines]
+                augment_count = 100  # default count
+                for polygon in polygons:
+                    if polygon.label == "0":  # or use '0' if your labels are strings
+                        print(f"crack class founded augmenting 300 times.")
+                        augment_count = 300  # the count for the desired class
+                        break
 
-            # Augment image and polygons 400 times for each image
-            for i in range(40):
-                img_aug, polygons_aug = aug(image=img, polygons=PolygonsOnImage(polygons, shape=img.shape))
-                # polygons_aug = polygons_aug.clip_out_of_image()
+                for i in range(augment_count):
+                    img_aug, polygons_aug = aug(image=img, polygons=PolygonsOnImage(polygons, shape=img.shape))
+                    # polygons_aug = polygons_aug.clip_out_of_image()
 
-                # Filter out polygons that are out-of-bound
-                valid_polygons = []
-                valid_labels = []
-                for polygon in polygons_aug.polygons:
-                    coords = polygon.exterior
-                    # print(f"what is polygons: {coords}")
-                    label = polygon.label
-                    if all(0 <= point[0] < img.shape[1] and 0 <= point[1] < img.shape[0] for point in coords):
-                        # print(f"what is label {label}")
-                        valid_polygons.append(polygon)
-                        valid_labels.append(label)
-                polygons_aug.polygons = valid_polygons
+                    # Filter out polygons that are out-of-bound
+                    valid_polygons = []
+                    valid_labels = []
+                    for polygon in polygons_aug.polygons:
+                        coords = polygon.exterior
+                        # print(f"what is polygons: {coords}")
+                        label = polygon.label
+                        if all(0 <= point[0] < img.shape[1] and 0 <= point[1] < img.shape[0] for point in coords):
+                            # print(f"what is label {label}")
+                            valid_polygons.append(polygon)
+                            valid_labels.append(label)
+                    polygons_aug.polygons = valid_polygons
 
-                # Clip the coordinates of the augmented polygons
-                # print(f"polygons before for {filename} {polygons}")
-                # print(f"polygons after for {filename} {polygons_aug}")
-                print(f"images/aug_{i}_")
-                # Save the augmented image
-                cv2.imwrite(os.path.join(target_dir, f"images/" + f"{filename[:-4]}_aug_{i}.jpg"), img_aug)
-                print(f"labels/aug_{i}_")
-                # Convert PolygonsOnImage object to polygons and save
-                polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0]))+' '+str(float(coord[1])) for coord in polygons_aug.exterior])}"
-                                    for polygons_aug, cls in zip(polygons_aug.polygons, valid_labels)]
-                with open(os.path.join(target_dir, f"labels/" + filename.rsplit(".", 1)[0] + f"_aug_{i}.txt"), 'w') as file:
-                    file.write('\n'.join(polygons_aug_txt))
-
-
-
+                    # Clip the coordinates of the augmented polygons
+                    # print(f"polygons before for {filename} {polygons}")
+                    # print(f"polygons after for {filename} {polygons_aug}")
+                    
+                    # Save the augmented image
+                    img_save_dir = os.path.join(f"{augment_dir}{split}/images/", f"{filename[:-4]}_aug_{i}.jpg")
+                    cv2.imwrite(os.path.join(f"{augment_dir}{split}/images/", f"{filename[:-4]}_aug_{i}.jpg"), img_aug)
+                    print(f"saving image to {img_save_dir}")
+                    # Convert PolygonsOnImage object to polygons and save
+                    polygons_aug_txt = [f"{cls} {' '.join([str(float(coord[0]))+' '+str(float(coord[1])) for coord in polygons_aug.exterior])}"
+                                        for polygons_aug, cls in zip(polygons_aug.polygons, valid_labels)]
+                    annot_save_dir = os.path.join(f"{augment_dir}{split}/labels/", f"{filename[:-4]}_aug_{i}.txt")
+                    with open(os.path.join(f"{augment_dir}{split}/labels/", f"{filename[:-4]}_aug_{i}.txt"), 'w') as file:
+                        print(f"saving image to {annot_save_dir}")
+                        file.write('\n'.join(polygons_aug_txt))
+    
 if __name__ == "__main__":
-    train_dir = f"{INPUT_DIR}train/"
-    valid_dir = f"{INPUT_DIR}valid/"
-    augment_data(train_dir, target_dir=OUTPUT_DIR+"train/")
-    augment_data(valid_dir, target_dir=OUTPUT_DIR+"valid/")
+    dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas/"
+    splits = ["train", "valid", "test"]
+    augment_dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas/"
+    for split in splits:
+        for dir in os.listdir(f"{dataset_dir}{split}/images/"):
+            img_dir = os.path.join(f"{dataset_dir}{split}/images/", dir)
+            annot_dir = f"{dataset_dir}{split}/labels/{dir[:-3]}txt"
+            augment_data(dataset_dir=dataset_dir, augment_dir=augment_dataset_dir)
