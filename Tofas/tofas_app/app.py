@@ -11,11 +11,12 @@ from engine.categorize import categorize_create_folder
 import argparse
 import time
 import sys
+import gdown
 
 # NOTE status 0 = engine is running, status 1= engine is stopping, status 2 = engine is ready to take action status 3 = forced stop (probably stopped by timed out in engine)
 # TODO status.txt should be in "more" sync and faster, socket, pipe etc.
 # TODO button - threads should be overcommunicated, so that app shouldn't crash. 
-# TODO should handle flow exceptions, crashes.
+# TODO should handle flow (gui-->engine, engine-->gui) exceptions, crashes.
 # TODO PYQT6 signal slot ??
 # TODO display images simultaneosly with captures
 
@@ -92,6 +93,12 @@ class Inovako(QtWidgets.QMainWindow):
         self.filter_select_cam.addItems(list_devices(args))
         self.filter_select_cam.currentIndexChanged.connect(self.filter_selection_cam)
         self.image_name = self.findChild(QtWidgets.QLabel, 'image_name')
+        # self.imageGrid = QtWidgets.QGridLayout() # to self updating display ?
+        self.imageLabels = [QtWidgets.QLabel() for _ in range(8)]
+        # for i, label in enumerate(self.imageLabels):
+        #     self.imageGrid.addWidget(label, i // 2, i % 2)  # Arrange labels in 2 rows and 4 columns
+        # self.setLayout(self.imageGrid)
+
         # Connect signals and slots
         update_status(2)
         self.backButton.clicked.connect(self.previous_image)
@@ -105,7 +112,7 @@ class Inovako(QtWidgets.QMainWindow):
         self.ins_time_stop = 0
         self.status_check_timer = QtCore.QTimer()
         self.status_check_timer.timeout.connect(self.check_engine_status)
-        self.status_check_timer.start(10) # 100ms 0.1 sec check status
+        self.status_check_timer.start(200) # 100ms 0.1 sec check status
     
     def filter_selection_cam(self, cam_id):
         args.filter_cam = list_devices(args)[cam_id]
@@ -128,7 +135,17 @@ class Inovako(QtWidgets.QMainWindow):
         self.images = [os.path.join(current_directory, img) for img in sorted(self.images)]
         self.index = 0
         self.display_image()
-
+    def update_display(self):
+        '''
+        every captured images will be displayed in a grid.
+        '''
+        run_id = os.listdir(args.out_dir)
+        for label, cam_dir in zip(self.imageLabels, os.listdir(os.path.join(args.out_dir, run_id))):
+            images_dir = args.out_dir + run_id + cam_dir + "NO_DET/"
+            capture_id = len(os.listdir(images_dir))
+            pixmap = QtGui.QPixmap(images_dir+f"output_{capture_id}.jpg")
+            label.setPixmap(pixmap.scaled(label.size()))
+        
     def display_image(self):
         if self.images:
             print(f"setting imagename : {self.images[self.index].split('/')}")
@@ -213,18 +230,25 @@ class Inovako(QtWidgets.QMainWindow):
     def pop_status_engine(self, warning, warning_desc):
         QMessageBox.information(self, warning, warning_desc)
     def check_engine_status(self): # TODO more safer status checker needed
+        # self.update_display()
         with open('./status.txt', 'r') as f:
             status = f.read().strip()
             # print(f"checking status of engine got: {status}")
             if status:
                 if int(status) == 3: # if stop signal interrupt comes from the engine
                     self.ins_time_stop = time.time()
-                    self.pop_status_engine(warning="Timed Out", warning_desc=f"It's been {args.wait_time} seconds, engine is stopped.")
                     self.stop_engine()
+                    self.pop_status_engine(warning="Timed Out", warning_desc=f"It's been {args.wait_time} seconds, engine is stopped.")
                 elif int(status) == 1 or int(status) == 0: # if it is in action
-                    self.buttonStart.clicked.disconnect() 
+                    try:
+                        self.buttonStart.clicked.disconnect()
+                    except Exception as e:
+                        print(f"face with error : {e}")
                 else: # if status is 2
-                    self.buttonStart.clicked.disconnect()
+                    try:
+                        self.buttonStart.clicked.disconnect()
+                    except Exception as e:
+                        print(f"face with error while disconnecting the button: {e}")
                     self.buttonStart.clicked.connect(self.start_stop_engine)
 
 

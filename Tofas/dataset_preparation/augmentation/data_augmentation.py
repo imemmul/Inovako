@@ -205,10 +205,10 @@ def augment_data(dataset_dir, augment_dir):
             shear=(-16, 16),  # shear by -16 to +16 degrees
         ),  
         iaa.PiecewiseAffine(scale=(0.01, 0.05)),  # sometimes distort images locally by moving some pixel blocks
-        iaa.PerspectiveTransform(scale=(0.01, 0.1)),  # perform transformations that simulate camera movements
-        iaa.Resize({"height": 864, "width": 864})
+        iaa.PerspectiveTransform(scale=(0.01, 0.1)) # perform transformations that simulate camera movement
     ], random_order=True)
 
+    
     splits = ["train", "valid", "test"]
     # Process each image
     for split in splits:
@@ -217,6 +217,7 @@ def augment_data(dataset_dir, augment_dir):
             if filename.endswith(".jpg"):
                 # Read image
                 img = cv2.imread(os.path.join(f"{dataset_dir}{split}/images/", filename))
+                img = cv2.resize(img, (864, 864))
                 img_height, img_width = img.shape[:2]
                 path_to_polygons = os.path.join(f"{dataset_dir}{split}/labels/", f"{filename[:-3]}txt")
                 with open(path_to_polygons, 'r') as file:
@@ -265,9 +266,9 @@ def augment_data(dataset_dir, augment_dir):
                         file.write('\n'.join(polygons_aug_txt))
     
 if __name__ == "__main__":
-    dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas/"
+    dataset_dir = "/home/emir/Desktop/dev/Inovako/dataset_tofas/"
     splits = ["train", "valid", "test"]
-    augment_dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas/"
+    augment_dataset_dir = "/home/emir/Desktop/dev/Inovako/augmented_dataset_tofas/"
     for split in splits:
         for dir in os.listdir(f"{dataset_dir}{split}/images/"):
             img_dir = os.path.join(f"{dataset_dir}{split}/images/", dir)
