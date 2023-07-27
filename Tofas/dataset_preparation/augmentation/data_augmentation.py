@@ -201,15 +201,17 @@ def augment_data(dataset_dir, augment_dir):
         iaa.Resize({"height": 864, "width": 864}),
         iaa.Fliplr(0.5),  # horizontal flips
         iaa.Flipud(0.2),  # vertical flips
+        iaa.GaussianBlur(sigma=(0.0, 1.0)),  # Apply Gaussian Blur
+        iaa.AdditiveGaussianNoise(scale=0.005*255),  # Add gaussian noise
         iaa.Affine(
             scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},  # zoom in & zoom out with scale of 0.8 to 1.2 times.
             translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},  # translate by -20 to +20 percent (per axis)
             rotate=(-45, 45),  # rotate by -45 to +45 degrees
-            shear=(-16, 16),  # shear by -16 to +16 degrees
         ),  
     ], random_order=True)
 
-    splits = ["train", "valid", "test"]
+    
+    splits = ["train", "valid"]
     # Process each image
     for split in splits:
         for filename in os.listdir(f"{dataset_dir}{split}/images/"):
@@ -217,6 +219,7 @@ def augment_data(dataset_dir, augment_dir):
             if filename.endswith(".jpg"):
                 # Read image
                 img = cv2.imread(os.path.join(f"{dataset_dir}{split}/images/", filename))
+                img = cv2.resize(img, (864, 864))
                 img_height, img_width = img.shape[:2]
                 print(img_height)
                 print(img_width)
@@ -226,10 +229,10 @@ def augment_data(dataset_dir, augment_dir):
                     polygons = [Polygon([(float(coord.split()[i])*img_width, float(coord.split()[i+1])*img_height) 
                                             for i in range(1, len(coord.split()), 2)], label=coord.split()[0]) 
                                     for coord in lines]
-                augment_count = 10  # default count
+                augment_count = 1  # default count
                 for polygon in polygons:
                     if polygon.label == "0":  # or use '0' if your labels are strings
-                        augment_count = 50  # the count for the desired class
+                        augment_count = 10  # the count for the desired class
                         break
                 print(f"augment count is : {augment_count}.")
                 for i in range(augment_count):
@@ -267,7 +270,7 @@ def augment_data(dataset_dir, augment_dir):
                     # draw_annotations(img_dir=img_save_dir, annot_dir=annot_save_dir, aug=True)
     
 if __name__ == "__main__":
-    dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas/"
-    splits = ["train", "valid", "test"]
-    augment_dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas/"
+    dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/dataset_tofas_v2/"
+    splits = ["train", "valid"]
+    augment_dataset_dir = "/Users/emirulurak/Desktop/dev/Inovako_folders/augmented_dataset_tofas_v2/"
     augment_data(dataset_dir=dataset_dir, augment_dir=augment_dataset_dir)
