@@ -22,7 +22,7 @@ def parse_args():
     parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
-    parser.add_argument('--gray-thres', type=int, default=30)
+    parser.add_argument('--gray-thres', type=int, default=10)
     parser.add_argument('--exposure-time', type=int, default=850)
     parser.add_argument('--conf-thres', type=float, default=0.25)
     parser.add_argument('--iou-thres', type=float, default=0.65)

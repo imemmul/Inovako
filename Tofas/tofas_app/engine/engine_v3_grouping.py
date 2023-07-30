@@ -146,8 +146,8 @@ def run_inference(q:Queue, group_id, args, running, devices):
                         cv2.putText(draw,
                                     f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2),
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    0.75, [225, 255, 255],
-                                    thickness=2)
+                                    2, [225, 255, 255],
+                                    thickness=5)
                     # print(f"image saved")
                     #print(f"trying to save det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg")
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
