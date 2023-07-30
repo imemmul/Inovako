@@ -3,7 +3,7 @@ import os
 import random
 from PyQt6.QtCore import Qt, QPointF, QThread, pyqtSignal, QRectF, QSizeF, pyqtProperty
 from PyQt6.QtGui import QPixmap, QFont, QPainter, QPen, QColor, QIcon
-from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QLabel, QFileDialog, QFrame, QLineEdit, QMessageBox, QDialog, QFormLayout, QDialogButtonBox, QTabBar, QStackedWidget, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup, QSizePolicy, QSpacerItem 
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QLabel, QSpinBox, QDoubleSpinBox, QFileDialog, QFrame, QLineEdit, QMessageBox, QDialog, QFormLayout, QDialogButtonBox, QTabBar, QStackedWidget, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup, QSizePolicy, QSpacerItem 
 from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QListWidget, QStyleOptionViewItem, QStyle
 from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget, QApplication
@@ -12,6 +12,7 @@ import argparse
 from PyQt6 import QtWidgets, QtCore
 from engine.categorize import categorize_create_folder
 import time
+from functools import partial
 from engine import engine_v3_grouping
 from engine.engine_v3_grouping import list_devices, update_status
 
@@ -26,7 +27,7 @@ def parse_args():
     parser.add_argument('--conf-thres', type=float, default=0.25)
     parser.add_argument('--iou-thres', type=float, default=0.65)
     parser.add_argument('--interval', type=float, default=0.1)
-    parser.add_argument('--check-interval', type=int, default=5)
+    parser.add_argument('--check-interval', type=int, default=1)
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--test-engine', action="store_true")
     parser.add_argument('--filter-cam', type=str)
@@ -119,26 +120,19 @@ class PhotoLabel(QLabel):
     def disable_drawing(self):
         self.drawing_enabled = False
 
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        # parameters for engine, in future will get from Setting tab
-        self.check_freq = QtWidgets.QSpinBox()
-        self.interval = QtWidgets.QDoubleSpinBox()
-        self.interval.setValue(0.2)
-        self.check_freq.setValue(1)
-        self.gray_thres = QtWidgets.QSpinBox()
-        self.gray_thres.setValue(10)
-        self.exposure_time = QtWidgets.QSpinBox()
-        self.exposure_time.setMaximum(1000000)
-        self.exposure_time.setValue(20000)
+
         self.engine_running = False
         self.status_check_timer = QtCore.QTimer()
         self.status_check_timer.timeout.connect(self.check_engine_status)
         self.status_check_timer.start(200) # 100ms 0.1 sec check status
         self.ins_time_start = None
         self.ins_time_stop = None
-        ###############################################
+
         icon_path = "logo/inovako_logo_negatif.png"
         self.setWindowIcon(QIcon(icon_path))
 
@@ -191,11 +185,7 @@ class MainWindow(QMainWindow):
         logo_label.setPixmap(logo_pixmap)
         logo_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         head_layout.addWidget(logo_label)
-        self.start_stop_button = QPushButton()
-        self.start_stop_button.setText("Start")
-        self.start_stop_button.clicked.connect(self.start_stop)
-        head_layout.addWidget(self.start_stop_button)
-        self.start_stop_button.setText("Start")
+
         self.tab_bar = QTabBar()
         self.tab_bar.addTab("Live")
         self.tab_bar.addTab("Defects")
@@ -203,18 +193,30 @@ class MainWindow(QMainWindow):
         self.tab_bar.setFixedWidth(1000)
         self.tab_bar.setFixedHeight(50)
         self.tab_bar.currentChanged.connect(self.on_tab_changed)
-        #self.tab_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # Yazı boyutunu değiştirmek için bir QFont oluşturun
         font = QFont()
-        font.setPointSize(14)  # Yazı boyutunu istediğiniz gibi ayarlayabilirsiniz
+        font.setPointSize(14)
         self.tab_bar.setFont(font)
 
-        main_layout.addWidget(self.tab_bar)
+        self.start_stop_button = QPushButton("Start")
+        self.start_stop_button.setFont(QFont("Arial", 14))
+        self.start_stop_button.setFixedSize(200, 50)
+        self.start_stop_button.setStyleSheet("background-color : rgba(229,30,73,255); border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.start_stop_button.clicked.connect(self.start_stop)
+        tab_layout = QHBoxLayout()
+        tab_layout.addWidget(self.tab_bar)
+        tab_layout.addSpacerItem(QSpacerItem(40, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        tab_layout.addWidget(self.start_stop_button)
 
-        # Disable the "Detects" and "Settings" tabs
-        self.tab_bar.setTabEnabled(1, False)  # "Detects" tab
-        self.tab_bar.setTabEnabled(2, False)  # "Settings" tab
+        main_layout.addLayout(tab_layout)
+
+        self.tab_bar.setTabEnabled(1, False)  # "Defects" tab
+        #self.tab_bar.setTabEnabled(2, False)  # "Settings" tab
+
+        tab_layout.setContentsMargins(0, 0, 30, 0)
+
+        # Add the tab_layout to the main_layout
+        main_layout.addLayout(tab_layout)
 
         self.left_bottom_widget = QWidget(self)
         self.left_bottom_layout = QVBoxLayout()
@@ -226,9 +228,9 @@ class MainWindow(QMainWindow):
         self.set_logo(self.previous_photo_button, 'yontus/sol.png')
         self.previous_photo_button.clicked.connect(self.go_back)
         self.previous_photo_button.setFixedSize(75, 252)
-        self.previous_photo_button.setStyleSheet("border: 2px solid black;")
+        self.previous_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.previous_photo_button)
-        # UPDATE EMIR
+
         # Add a 100x100 photo placeholder
         self.photo_placeholder = QLabel(self)
         self.photo_placeholder.setFixedSize(300, 250)
@@ -239,7 +241,7 @@ class MainWindow(QMainWindow):
         self.set_logo(self.change_photo_button, 'yontus/sag.png')
         self.change_photo_button.setFixedSize(75, 252)
         self.change_photo_button.clicked.connect(self.change_photo)
-        self.change_photo_button.setStyleSheet("border: 2px solid black;")
+        self.change_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.change_photo_button)
 
         self.left_bottom_layout.addLayout(left_section_layout)
@@ -250,6 +252,7 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(left_panel)
         main_layout.addWidget(right_panel)
+        
 
         self.stacked_widget = QStackedWidget()
         self.setup_canli_page()
@@ -258,25 +261,19 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.stacked_widget)
 
         self.load_photos()
-        # TODO EMIR check later
+
         # self.worker_thread = WorkerThread()
         # self.worker_thread.finished.connect(self.on_thread_finished)
         update_status(2)
+
     def on_thread_finished(self):
         print("Thread işlemi tamamlandı!")
         # İşlem sonucunu ana thread'de kullanabilirsiniz
         # Ancak arayüz bileşenlerine dokunmayı unutmayın
-
     def start_stop(self):
-        if self.check_freq.value() != 0:
-            args.check_interval = self.check_freq.value()
-        # print(f"check interval set to {int(args.check_interval)}")
-        args.gray_thres = self.gray_thres.value()
-        args.interval = self.interval.value()
         # print(f"gray_thres : {args.gray_thres}")
-        if self.exposure_time.value() != 0:
-            print(f"exposure time set to {self.exposure_time.value()}")
-            args.exposure_time = self.exposure_time.value()
+        if args.exposure_time != 0:
+            print(f"exposure time set to {args.exposure_time}")
             # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
                 self.start_stop_button.clicked.disconnect()
@@ -304,7 +301,6 @@ class MainWindow(QMainWindow):
         # self.backButton.hide()
         # self.forwardButton.hide()
         # self.folderButton.hide()
-        self.start_stop_button.setStyleSheet("background-color: red; color: black; font: 32px")
         self.start_stop_button.setText("Stop")
         self.engineThread = WorkerThread()
         self.engineThread.start()
@@ -346,11 +342,9 @@ class MainWindow(QMainWindow):
         # self.forwardButton.show()
         # self.folderButton.show()
         self.engine_running = False
-        self.start_stop_button.setStyleSheet("background-color: rgb(142, 236, 186); color: black; font: 32px")
         self.start_stop_button.setText("Start")
-        ins_time = self.ins_time_stop - self.ins_time_start
+        # ins_time = self.ins_time_stop - self.ins_time_start
         # self.ins_time_widget.setText(self.format_time(ins_time=ins_time)) # TODO SELIM muayene suresi yazan bir yer eklenmesi gerekiyor ve bu hesap ona set edilecek.
-
     def show_page(self, index):
         self.stacked_widget.setCurrentIndex(index)
 
@@ -437,13 +431,13 @@ class MainWindow(QMainWindow):
         self.set_logo(self.prev_list_button, 'yontus/ust.png')
         self.prev_list_button.clicked.connect(self.show_previous_list)
         self.prev_list_button.setFixedSize(75, 75)
-        self.prev_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.prev_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
         self.next_list_button = QPushButton()
         self.set_logo(self.next_list_button, 'yontus/alt.png')
         self.next_list_button.clicked.connect(self.show_next_list)
         self.next_list_button.setFixedSize(75, 75)
-        self.next_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.next_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
 
         # Create a layout for the buttons (Previous List and Next List)
@@ -460,6 +454,8 @@ class MainWindow(QMainWindow):
         # Create a horizontal layout for the buttons and label_list
         buttons_and_list_layout = QHBoxLayout()
         buttons_and_list_layout.addWidget(self.label_list)         # Add the label_list to the horizontal layout
+        buttons_and_list_layout.addLayout(vertical_button_layout)  # Add the vertical layout with buttons to the horizontal layout
+
         # Add the buttons and label_list layout to the left panel layout
         left_panel_layout.addLayout(buttons_and_list_layout)
         # Add the buttons layout to the left panel layout
@@ -571,19 +567,91 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget.addWidget(kul_widget)
 
+   
+
     def setup_ayarlar_page(self):
         ayarlar_widget = QWidget(self)
-        ayarlar_layout = QVBoxLayout()
+        ayarlar_layout = QHBoxLayout()  # Main layout for the "Settings" page
         ayarlar_widget.setLayout(ayarlar_layout)
+        ayarlar_widget.setStyleSheet("background-color: rrgba(10, 21, 39, 255); color: black;")
 
-        ayarlar_content_label = QLabel("This is the AYARLAR page.")
-        ayarlar_content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ayarlar_layout.addWidget(ayarlar_content_label)
+        # Add the photo frame (left section)
+        photo_frame = QFrame()
+        photo_frame.setFixedWidth(1500)  # Set the width of the photo_frame to 1000
+        photo_frame.setFrameShape(QFrame.Shape.Panel)
+        photo_frame.setFrameShadow(QFrame.Shadow.Raised)
+        photo_frame.setStyleSheet("background-color: black; color: white")
+        photo_layout = QVBoxLayout()
+        photo_frame.setLayout(photo_layout)
 
-        ayarlar_widget.setStyleSheet("background-color: rgba(255, 255, 255, 255); color: black;")
+        # Placeholder photo
+        photo_placeholder = QLabel(self)
+        photo_placeholder.setFixedSize(300, 250)
+        photo_placeholder.setStyleSheet("background-color: black; color: white; border: 1px solid black;")
+        photo_layout.addWidget(photo_placeholder)
+
+        # Add the photo frame to the left side
+        ayarlar_layout.addWidget(photo_frame)
+
+        # Create a layout for the right section (other widgets)
+        right_section_layout = QVBoxLayout()
+
+        # Exposure Time SpinBox
+        exposure_time_label = QLabel("Exposure Time:")
+        exposure_time_label.setStyleSheet("color: white;")  # Set text color to white
+        exposure_time_spinbox = QSpinBox()
+        # Set appropriate range for exposure time (adjust min and max values as needed)
+        exposure_time_spinbox.setRange(10, 1000000)
+        right_section_layout.addWidget(exposure_time_label)
+        right_section_layout.addWidget(exposure_time_spinbox)
+
+        # Check Frequency DoubleSpinBox
+        check_frequency_label = QLabel("Check Frequency:")
+        check_frequency_label.setStyleSheet("color: white;")  # Set text color to white
+        check_frequency_spinbox = QDoubleSpinBox()
+        # Set appropriate range for check frequency (adjust min, max, and step values as needed)
+        check_frequency_spinbox.setRange(0.1, 10.0)
+        check_frequency_spinbox.setSingleStep(0.1)
+        right_section_layout.addWidget(check_frequency_label)
+        right_section_layout.addWidget(check_frequency_spinbox)
+
+        # Capture Frequency DoubleSpinBox
+        capture_frequency_label = QLabel("Capture Frequency:")
+        capture_frequency_label.setStyleSheet("color: white;")  # Set text color to white
+        capture_frequency_spinbox = QDoubleSpinBox()
+        # Set appropriate range for capture frequency (adjust min, max, and step values as needed)
+        capture_frequency_spinbox.setRange(0.1, 10.0)
+        capture_frequency_spinbox.setSingleStep(0.1)
+        right_section_layout.addWidget(capture_frequency_label)
+        right_section_layout.addWidget(capture_frequency_spinbox)
+
+        # Gray Threshold SpinBox
+        gray_threshold_label = QLabel("Gray Threshold:")
+        gray_threshold_label.setStyleSheet("color: white;")  # Set text color to white
+        gray_threshold_spinbox = QSpinBox()
+        # Set appropriate range for gray threshold (adjust min and max values as needed)
+        gray_threshold_spinbox.setRange(0, 255)
+        right_section_layout.addWidget(gray_threshold_label)
+        right_section_layout.addWidget(gray_threshold_spinbox)
+        exposure_time_spinbox.valueChanged.connect(partial(self.update_args, widget_name="exposure_time"))
+        gray_threshold_spinbox.valueChanged.connect(partial(self.update_args, widget_name="gray_thres"))
+        check_frequency_spinbox.valueChanged.connect(partial(self.update_args, widget_name="check_freq"))
+        capture_frequency_spinbox.valueChanged.connect(partial(self.update_args, widget_name="capture_freq"))
+        # Add the right section layout to the main layout
+        ayarlar_layout.addLayout(right_section_layout)
 
         self.stacked_widget.addWidget(ayarlar_widget)
 
+    def update_args(self, value, widget_name):
+        if widget_name == "exposure_time":
+            args.exposure_time = value
+        elif widget_name == "gray_thres":
+            args.gray_thres = value
+        elif widget_name == "capture_freq":
+            args.interval = value 
+        else:
+            args.check_interval = value
+        print(f"setting {widget_name} = {value}")
     def load_photos(self):
         self.photo_paths = []
 
