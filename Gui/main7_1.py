@@ -6,9 +6,11 @@ from PyQt6.QtGui import QPixmap, QFont, QPainter, QPen, QColor, QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QLabel, QFileDialog, QFrame, QLineEdit, QMessageBox, QDialog, QFormLayout, QDialogButtonBox, QTabBar, QStackedWidget, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup, QSizePolicy, QSpacerItem 
 from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QListWidget, QStyleOptionViewItem, QStyle
-from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget, QApplication
+from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget, QApplication, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QPixmap
-
+from PyQt6.QtWidgets import QMainWindow, QApplication, QTabBar, QVBoxLayout, QPushButton, QWidget, QHBoxLayout, QSpacerItem, QSizePolicy
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSpinBox, QDoubleSpinBox
+from PyQt6.QtCore import Qt
 
 
 class WorkerThread(QThread):
@@ -150,18 +152,31 @@ class MainWindow(QMainWindow):
         self.tab_bar.setFixedWidth(1000)
         self.tab_bar.setFixedHeight(50)
         self.tab_bar.currentChanged.connect(self.on_tab_changed)
-        #self.tab_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # Yazı boyutunu değiştirmek için bir QFont oluşturun
         font = QFont()
-        font.setPointSize(14)  # Yazı boyutunu istediğiniz gibi ayarlayabilirsiniz
+        font.setPointSize(14)
         self.tab_bar.setFont(font)
 
-        main_layout.addWidget(self.tab_bar)
+        self.play_button = QPushButton("Play")
+        self.play_button.setFont(QFont("Arial", 14))
+        self.play_button.setFixedSize(200, 50)
+        self.play_button.setStyleSheet("background-color : rgba(229,30,73,255); border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
 
-        # Disable the "Detects" and "Settings" tabs
-        self.tab_bar.setTabEnabled(1, False)  # "Detects" tab
-        self.tab_bar.setTabEnabled(2, False)  # "Settings" tab
+
+        tab_layout = QHBoxLayout()
+        tab_layout.addWidget(self.tab_bar)
+        tab_layout.addSpacerItem(QSpacerItem(40, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        tab_layout.addWidget(self.play_button)
+
+        main_layout.addLayout(tab_layout)
+
+        self.tab_bar.setTabEnabled(1, False)  # "Defects" tab
+        #self.tab_bar.setTabEnabled(2, False)  # "Settings" tab
+
+        tab_layout.setContentsMargins(0, 0, 30, 0)
+
+        # Add the tab_layout to the main_layout
+        main_layout.addLayout(tab_layout)
 
         self.left_bottom_widget = QWidget(self)
         self.left_bottom_layout = QVBoxLayout()
@@ -173,7 +188,7 @@ class MainWindow(QMainWindow):
         self.set_logo(self.previous_photo_button, 'yontus/sol.png')
         self.previous_photo_button.clicked.connect(self.go_back)
         self.previous_photo_button.setFixedSize(75, 252)
-        self.previous_photo_button.setStyleSheet("border: 2px solid black;")
+        self.previous_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.previous_photo_button)
 
         # Add a 100x100 photo placeholder
@@ -186,7 +201,7 @@ class MainWindow(QMainWindow):
         self.set_logo(self.change_photo_button, 'yontus/sag.png')
         self.change_photo_button.setFixedSize(75, 252)
         self.change_photo_button.clicked.connect(self.change_photo)
-        self.change_photo_button.setStyleSheet("border: 2px solid black;")
+        self.change_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.change_photo_button)
 
         self.left_bottom_layout.addLayout(left_section_layout)
@@ -197,6 +212,7 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(left_panel)
         main_layout.addWidget(right_panel)
+        
 
         self.stacked_widget = QStackedWidget()
         self.setup_canli_page()
@@ -300,13 +316,13 @@ class MainWindow(QMainWindow):
         self.set_logo(self.prev_list_button, 'yontus/ust.png')
         self.prev_list_button.clicked.connect(self.show_previous_list)
         self.prev_list_button.setFixedSize(75, 75)
-        self.prev_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.prev_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
         self.next_list_button = QPushButton()
         self.set_logo(self.next_list_button, 'yontus/alt.png')
         self.next_list_button.clicked.connect(self.show_next_list)
         self.next_list_button.setFixedSize(75, 75)
-        self.next_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.next_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
 
         # Create a layout for the buttons (Previous List and Next List)
@@ -436,18 +452,79 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget.addWidget(kul_widget)
 
+   
+
     def setup_ayarlar_page(self):
         ayarlar_widget = QWidget(self)
-        ayarlar_layout = QVBoxLayout()
+        ayarlar_layout = QHBoxLayout()  # Main layout for the "Settings" page
         ayarlar_widget.setLayout(ayarlar_layout)
+        ayarlar_widget.setStyleSheet("background-color: rrgba(10, 21, 39, 255); color: black;")
 
-        ayarlar_content_label = QLabel("This is the AYARLAR page.")
-        ayarlar_content_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ayarlar_layout.addWidget(ayarlar_content_label)
+        # Add the photo frame (left section)
+        photo_frame = QFrame()
+        photo_frame.setFixedWidth(1500)  # Set the width of the photo_frame to 1000
+        photo_frame.setFrameShape(QFrame.Shape.Panel)
+        photo_frame.setFrameShadow(QFrame.Shadow.Raised)
+        photo_frame.setStyleSheet("background-color: black; color: white")
+        photo_layout = QVBoxLayout()
+        photo_frame.setLayout(photo_layout)
 
-        ayarlar_widget.setStyleSheet("background-color: rgba(255, 255, 255, 255); color: black;")
+        # Placeholder photo
+        photo_placeholder = QLabel(self)
+        photo_placeholder.setFixedSize(300, 250)
+        photo_placeholder.setStyleSheet("background-color: black; color: white; border: 1px solid black;")
+        photo_layout.addWidget(photo_placeholder)
+
+        # Add the photo frame to the left side
+        ayarlar_layout.addWidget(photo_frame)
+
+        # Create a layout for the right section (other widgets)
+        right_section_layout = QVBoxLayout()
+
+        # Exposure Time SpinBox
+        exposure_time_label = QLabel("Exposure Time:")
+        exposure_time_label.setStyleSheet("color: white;")  # Set text color to white
+        exposure_time_spinbox = QSpinBox()
+        # Set appropriate range for exposure time (adjust min and max values as needed)
+        exposure_time_spinbox.setRange(1, 1000)
+        right_section_layout.addWidget(exposure_time_label)
+        right_section_layout.addWidget(exposure_time_spinbox)
+
+        # Check Frequency DoubleSpinBox
+        check_frequency_label = QLabel("Check Frequency:")
+        check_frequency_label.setStyleSheet("color: white;")  # Set text color to white
+        check_frequency_spinbox = QDoubleSpinBox()
+        # Set appropriate range for check frequency (adjust min, max, and step values as needed)
+        check_frequency_spinbox.setRange(0.1, 10.0)
+        check_frequency_spinbox.setSingleStep(0.1)
+        right_section_layout.addWidget(check_frequency_label)
+        right_section_layout.addWidget(check_frequency_spinbox)
+
+        # Capture Frequency DoubleSpinBox
+        capture_frequency_label = QLabel("Capture Frequency:")
+        capture_frequency_label.setStyleSheet("color: white;")  # Set text color to white
+        capture_frequency_spinbox = QDoubleSpinBox()
+        # Set appropriate range for capture frequency (adjust min, max, and step values as needed)
+        capture_frequency_spinbox.setRange(0.1, 10.0)
+        capture_frequency_spinbox.setSingleStep(0.1)
+        right_section_layout.addWidget(capture_frequency_label)
+        right_section_layout.addWidget(capture_frequency_spinbox)
+
+        # Gray Threshold SpinBox
+        gray_threshold_label = QLabel("Gray Threshold:")
+        gray_threshold_label.setStyleSheet("color: white;")  # Set text color to white
+        gray_threshold_spinbox = QSpinBox()
+        # Set appropriate range for gray threshold (adjust min and max values as needed)
+        gray_threshold_spinbox.setRange(0, 255)
+        right_section_layout.addWidget(gray_threshold_label)
+        right_section_layout.addWidget(gray_threshold_spinbox)
+
+        # Add the right section layout to the main layout
+        ayarlar_layout.addLayout(right_section_layout)
 
         self.stacked_widget.addWidget(ayarlar_widget)
+
+
 
     def load_photos(self):
         self.photo_paths = []
