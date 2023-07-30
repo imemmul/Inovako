@@ -176,6 +176,7 @@ def run_devices(cam_groups, nums_cams, args):
     barrier = Barrier(nums_cams)
     inference_processes = []
     delay_dict = {}
+    update_status(2)
     with ThreadPoolExecutor(max_workers=nums_cams) as executor:
         for group_id, group in enumerate(cam_groups):
             print(f"group_id: {group_id}")
@@ -198,6 +199,7 @@ def run_devices(cam_groups, nums_cams, args):
             except Exception as e:
                 print(f"some error occured in thread pool: {e}")
                 traceback.print_exc()
+        update_status(2)
     executor.shutdown(wait=True)  # Stop the executor
     for p_id, p in enumerate(inference_processes):
         if p.is_alive(): # If the process is still running, terminate it
@@ -263,6 +265,7 @@ def trigger_master(args, cam, cam_id, running, q, delay_dict, capture_all, barri
                     time.sleep(args.interval)
                 if not running.is_set():
                     capture_all.clear()
+                    barrier.abort()
                     update_status(1)
                     break
             except Exception as e:
@@ -326,6 +329,7 @@ def load_engine(args):
         Engine.set_desired(['outputs', 'proto'])
         return Engine, device, H, W
     except Exception as e:
+        update_status(2)
         print(f"An error occured in load_engine: {e}")
 
 def load_devices(args):

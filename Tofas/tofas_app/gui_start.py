@@ -18,7 +18,7 @@ from engine.engine_v3_grouping import list_devices, update_status
 def parse_args():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
-    parser.add_argument('--engine', type=str, default="/home/emir/Desktop/dev/Inovako/tensorrt_engines/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=30)
@@ -130,7 +130,8 @@ class MainWindow(QMainWindow):
         self.gray_thres = QtWidgets.QSpinBox()
         self.gray_thres.setValue(10)
         self.exposure_time = QtWidgets.QSpinBox()
-        self.exposure_time.setValue(850)
+        self.exposure_time.setMaximum(1000000)
+        self.exposure_time.setValue(20000)
         self.engine_running = False
         self.status_check_timer = QtCore.QTimer()
         self.status_check_timer.timeout.connect(self.check_engine_status)
@@ -257,10 +258,10 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.stacked_widget)
 
         self.load_photos()
-
-        self.worker_thread = WorkerThread()
-        self.worker_thread.finished.connect(self.on_thread_finished)
-    
+        # TODO EMIR check later
+        # self.worker_thread = WorkerThread()
+        # self.worker_thread.finished.connect(self.on_thread_finished)
+        update_status(2)
     def on_thread_finished(self):
         print("Thread işlemi tamamlandı!")
         # İşlem sonucunu ana thread'de kullanabilirsiniz
@@ -274,11 +275,12 @@ class MainWindow(QMainWindow):
         args.interval = self.interval.value()
         # print(f"gray_thres : {args.gray_thres}")
         if self.exposure_time.value() != 0:
+            print(f"exposure time set to {self.exposure_time.value()}")
             args.exposure_time = self.exposure_time.value()
             # print(f"what is set exposure time {args.exposure_time}")
             if self.engine_running:
-                self.buttonStart.clicked.disconnect()
-                self.buttonStart.clicked.connect(lambda: self.pop_status_engine("Engine is stopping", "Please wait, engine is stopping."))
+                self.start_stop_button.clicked.disconnect()
+                self.start_stop_button.clicked.connect(lambda: self.pop_status_engine("Engine is stopping", "Please wait, engine is stopping."))
                 self.ins_time_stop = time.time()
                 # update_status(command=1) # stopping process signal
                 self.stop_engine()
@@ -328,6 +330,7 @@ class MainWindow(QMainWindow):
                         print(f"face with error : {e}")
                 else: # if status is 2
                     try:
+                        self.start_stop_button.setEnabled(True)
                         self.start_stop_button.clicked.disconnect()
                     except Exception as e:
                         print(f"face with error while disconnecting the button: {e}")
