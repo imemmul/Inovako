@@ -6,8 +6,9 @@ from PyQt6.QtGui import QPixmap, QFont, QPainter, QPen, QColor, QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QLabel, QFileDialog, QFrame, QLineEdit, QMessageBox, QDialog, QFormLayout, QDialogButtonBox, QTabBar, QStackedWidget, QListWidget, QListWidgetItem, QRadioButton, QButtonGroup, QSizePolicy, QSpacerItem 
 from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import QListWidget, QStyleOptionViewItem, QStyle
-from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget, QApplication
+from PyQt6.QtWidgets import QPushButton, QVBoxLayout, QWidget, QApplication, QSpacerItem, QSizePolicy
 from PyQt6.QtGui import QPixmap
+from PyQt6.QtWidgets import QMainWindow, QApplication, QTabBar, QVBoxLayout, QPushButton, QWidget, QHBoxLayout, QSpacerItem, QSizePolicy
 
 
 
@@ -150,18 +151,31 @@ class MainWindow(QMainWindow):
         self.tab_bar.setFixedWidth(1000)
         self.tab_bar.setFixedHeight(50)
         self.tab_bar.currentChanged.connect(self.on_tab_changed)
-        #self.tab_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # Yazı boyutunu değiştirmek için bir QFont oluşturun
         font = QFont()
-        font.setPointSize(14)  # Yazı boyutunu istediğiniz gibi ayarlayabilirsiniz
+        font.setPointSize(14)
         self.tab_bar.setFont(font)
 
-        main_layout.addWidget(self.tab_bar)
+        self.play_button = QPushButton("Play")
+        self.play_button.setFont(QFont("Arial", 14))
+        self.play_button.setFixedSize(200, 50)
+        self.play_button.setStyleSheet("background-color : rgba(229,30,73,255); border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
 
-        # Disable the "Detects" and "Settings" tabs
-        self.tab_bar.setTabEnabled(1, False)  # "Detects" tab
+
+        tab_layout = QHBoxLayout()
+        tab_layout.addWidget(self.tab_bar)
+        tab_layout.addSpacerItem(QSpacerItem(40, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+        tab_layout.addWidget(self.play_button)
+
+        main_layout.addLayout(tab_layout)
+
+        self.tab_bar.setTabEnabled(1, False)  # "Defects" tab
         self.tab_bar.setTabEnabled(2, False)  # "Settings" tab
+
+        tab_layout.setContentsMargins(0, 0, 30, 0)
+
+        # Add the tab_layout to the main_layout
+        main_layout.addLayout(tab_layout)
 
         self.left_bottom_widget = QWidget(self)
         self.left_bottom_layout = QVBoxLayout()
@@ -173,7 +187,7 @@ class MainWindow(QMainWindow):
         self.set_logo(self.previous_photo_button, 'yontus/sol.png')
         self.previous_photo_button.clicked.connect(self.go_back)
         self.previous_photo_button.setFixedSize(75, 252)
-        self.previous_photo_button.setStyleSheet("border: 2px solid black;")
+        self.previous_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.previous_photo_button)
 
         # Add a 100x100 photo placeholder
@@ -186,7 +200,7 @@ class MainWindow(QMainWindow):
         self.set_logo(self.change_photo_button, 'yontus/sag.png')
         self.change_photo_button.setFixedSize(75, 252)
         self.change_photo_button.clicked.connect(self.change_photo)
-        self.change_photo_button.setStyleSheet("border: 2px solid black;")
+        self.change_photo_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
         left_section_layout.addWidget(self.change_photo_button)
 
         self.left_bottom_layout.addLayout(left_section_layout)
@@ -300,13 +314,13 @@ class MainWindow(QMainWindow):
         self.set_logo(self.prev_list_button, 'yontus/ust.png')
         self.prev_list_button.clicked.connect(self.show_previous_list)
         self.prev_list_button.setFixedSize(75, 75)
-        self.prev_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.prev_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
         self.next_list_button = QPushButton()
         self.set_logo(self.next_list_button, 'yontus/alt.png')
         self.next_list_button.clicked.connect(self.show_next_list)
         self.next_list_button.setFixedSize(75, 75)
-        self.next_list_button.setStyleSheet("border: 2px solid black;")  # Siyah kenarlık eklemek için stil yönlendirmesi
+        self.next_list_button.setStyleSheet("background-color: rgba(229,30,73,255);border: 2px solid black;")
 
 
         # Create a layout for the buttons (Previous List and Next List)
