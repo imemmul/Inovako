@@ -688,7 +688,7 @@ class MainWindow(QMainWindow):
         self.detection_history = []
 
         file_path = self.photo_paths[self.current_photo_index]
-        self.photo_pixmap = QPixmap(file_path)
+        self.photo_pixmap = QPixmap(file_path, )
         self.update_photo()
 
         # Güncel resim bilgilerine göre otomatik olarak kırmızı yuvarlakları çiz
