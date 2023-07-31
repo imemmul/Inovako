@@ -121,7 +121,7 @@ class PhotoLabel(QLabel):
         self.drawing_enabled = False
 
 
-
+# TODO placeholder parca display edecek, photo_frame buyuk ana parcayi display edecek
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -150,7 +150,8 @@ class MainWindow(QMainWindow):
 
         self.current_photo_index = 0
         self.detection_history = []  # Tüm fotoğraflardaki Hole değerlerini burada tutacağız
-        self.photo_directory = "./AHTG2G7G_025"
+        self.photo_directory = "./MAIN_PARTS" # TODO will be updated in check_engine_status
+        self.crack_directoty = None
         self.photo_paths = []
         self.part_name = os.path.basename(self.photo_directory)
         self.part_id = random.randint(1, 1000)
@@ -801,11 +802,13 @@ class MainWindow(QMainWindow):
 
 
     def clear_drawings(self):
-        self.photo_pixmap = QPixmap(self.photo_paths[self.current_photo_index])
-        self.update_photo()
+        # TODO handle index out of error
+        if len(self.photo_paths) > 0:
+            self.photo_pixmap = QPixmap(self.photo_paths[self.current_photo_index])
+            self.update_photo()
 
-        self.hole_count = 0
-        self.detection_history = []
+            self.hole_count = 0
+            self.detection_history = []
 
     def get_image_info(self):
         # Güncel resmin adını alıp txt dosyasındaki ilgili satırları filtreleyerek döndürüyoruz
@@ -826,7 +829,7 @@ class MainWindow(QMainWindow):
     def auto_draw_circles(self):
         # Güncel resim bilgilerine göre kırmızı ve mavi yuvarlakları çiz
         image_path = self.photo_paths[self.current_photo_index]
-
+        # TODO draw circles on image
         if not os.path.exists(image_path):
             print(f"{image_path} dosyası bulunamadı.")
             return
