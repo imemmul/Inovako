@@ -19,7 +19,7 @@ from engine.engine_v3_grouping import list_devices, update_status
 def parse_args():
     parser = argparse.ArgumentParser()
     # parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model.engine")
-    parser.add_argument('--engine', type=str, default="/home/inovako/Inovako/emir_workspace/tensorrt_engines/tofas_engine/tofas_model.engine")
+    parser.add_argument('--engine', type=str, default="/home/inovako/Desktop/Inovako/tensorrt_engines/tofas_model_v4.engine")
     parser.add_argument('--out-dir', type=str, default='./output/')
     parser.add_argument('--device', type=str, default='cuda:0')
     parser.add_argument('--gray-thres', type=int, default=10)
@@ -150,7 +150,7 @@ class MainWindow(QMainWindow):
 
         self.current_photo_index = 0
         self.detection_history = []  # Tüm fotoğraflardaki Hole değerlerini burada tutacağız
-        self.photo_directory = "./MAIN_PARTS" # TODO will be updated in check_engine_status
+        self.photo_directory = f"/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/run_{len(os.listdir(args.out_dir))}/Basler a2A2600-64umBAS (40359004)/{args.exposure_time}/DET/" # TODO will be updated in check_engine_status
         self.crack_directoty = None
         self.photo_paths = []
         self.part_name = os.path.basename(self.photo_directory)
@@ -480,10 +480,10 @@ class MainWindow(QMainWindow):
         self.photo_frame.setStyleSheet("background-color: black; color: white")
         self.photo_layout = QVBoxLayout()
         self.photo_frame.setLayout(self.photo_layout)
-        #self.photo_label = PhotoLabel(self)
-        #self.photo_label.setStyleSheet("background-color: black; color: white; border: 2px solid #3a7ca5;")
+        self.photo_label = QLabel()
+        self.photo_label.setStyleSheet("background-color: black; color: white; border: 2px solid #3a7ca5;")
 
-        #self.photo_layout.addWidget(self.photo_label)
+        self.photo_layout.addWidget(self.photo_label)
 
 
         right_section_layout.addWidget(self.photo_frame)
@@ -676,7 +676,6 @@ class MainWindow(QMainWindow):
                 y = int(info[3])
                 self.detection_history.append(f"Hole {self.hole_count + 1}: (X: {x}, Y: {y})")
                 self.hole_count += 1
-
         self.current_photo_index += 1
         if self.current_photo_index >= len(self.photo_paths):
             self.current_photo_index = 0
@@ -689,6 +688,7 @@ class MainWindow(QMainWindow):
 
         file_path = self.photo_paths[self.current_photo_index]
         self.photo_pixmap = QPixmap(file_path, )
+        self.photo_pixmap = self.photo_pixmap.scaled(self.photo_label.size())
         self.update_photo()
 
         # Güncel resim bilgilerine göre otomatik olarak kırmızı yuvarlakları çiz
@@ -696,10 +696,11 @@ class MainWindow(QMainWindow):
 
          # Get the photo_label from the photo_layout
         photo_label = self.photo_layout.itemAt(0).widget()
-        if isinstance(photo_label, PhotoLabel):
+        if isinstance(photo_label, QLabel):
             # Set the photo_pixmap to the photo_placeholder
             self.photo_label.pixmap()
             self.photo_placeholder.setPixmap(photo_label.pixmap())
+            self.photo_placeholder.setScaledContents(True)
 
     def go_back(self):
         if len(self.photo_paths) == 0:
@@ -726,6 +727,7 @@ class MainWindow(QMainWindow):
 
         file_path = self.photo_paths[self.current_photo_index]
         self.photo_pixmap = QPixmap(file_path)
+        self.photo_pixmap = self.photo_pixmap.scaled(self.photo_label.size())
         self.update_photo()
 
         # Güncel resim bilgilerine göre otomatik olarak kırmızı yuvarlakları çiz
@@ -733,16 +735,19 @@ class MainWindow(QMainWindow):
 
          # Get the photo_label from the photo_layout
         photo_label = self.photo_layout.itemAt(0).widget()
-        if isinstance(photo_label, PhotoLabel):
+        if isinstance(photo_label, QLabel):
             # Set the photo_pixmap to the photo_placeholder
             self.photo_placeholder.setPixmap(photo_label.pixmap())
 
     def update_photo(self):
         if self.photo_pixmap:
             self.photo_layout.removeWidget(self.photo_frame.findChild(QLabel))
-            self.photo_label = PhotoLabel()
-            self.photo_label.setPixmap(self.photo_pixmap)
+            self.photo_label = QLabel()
             self.photo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.photo_placeholder.setScaledContents(True)
+            self.photo_label.setScaledContents(True)
+            f"/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/run_{len(os.listdir(args.out_dir))}/Basler a2A2600-64umBAS (4036004)/{args.exposure_time}/DET/"
+            self.photo_label.setPixmap(self.photo_pixmap.scaled(self.photo_label.size()))
             self.photo_layout.addWidget(self.photo_label)
 
     def prompt_draw_coordinates(self):
@@ -787,8 +792,8 @@ class MainWindow(QMainWindow):
             painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, text)
 
             painter.end()
-
-            self.photo_label.setPixmap(self.photo_pixmap)
+            f"/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/run_{len(os.listdir(args.out_dir))}/Basler a2A2600-64umBAS (4036004)/{args.exposure_time}/DET/"
+            self.photo_label.setPixmap(self.photo_pixmap.scaled(self.photo_label.size()))
 
             self.hole_count += 1
             self.detection_history.append(f"Hole {self.hole_count}")
@@ -882,7 +887,8 @@ class MainWindow(QMainWindow):
 
         painter.end()
         self.photo_pixmap = image
-        self.photo_label.setPixmap(self.photo_pixmap)
+        f"/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/run_{len(os.listdir(args.out_dir))}/Basler a2A2600-64umBAS (4036004)/{args.exposure_time}/DET/"
+        self.photo_label.setPixmap(self.photo_pixmap.scaled(self.photo_label.size()))
 
 
 class DrawCoordinatesInputDialog(QDialog):

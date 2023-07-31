@@ -11,7 +11,6 @@ from engine.categorize import categorize_create_folder
 import argparse
 import time
 import sys
-import gdown
 
 # NOTE status 0 = engine is running, status 1= engine is stopping, status 2 = engine is ready to take action status 3 = forced stop (probably stopped by timed out in engine)
 # TODO status.txt should be in "more" sync and faster, socket, pipe etc.
