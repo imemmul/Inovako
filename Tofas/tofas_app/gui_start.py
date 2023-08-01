@@ -26,14 +26,14 @@ def parse_args():
     parser.add_argument('--exposure-time', type=int, default=850)
     parser.add_argument('--conf-thres', type=float, default=0.25)
     parser.add_argument('--iou-thres', type=float, default=0.65)
-    parser.add_argument('--interval', type=float, default=0.1)
+    parser.add_argument('--interval', type=float, default=0.25)
     parser.add_argument('--check-interval', type=int, default=1)
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--test-engine', action="store_true")
     parser.add_argument('--filter-cam', type=str)
     parser.add_argument('--filter-expo', type=str)
     parser.add_argument('--master', type=int, default=0)
-    parser.add_argument('--group-size', type=int, default=1) # TODO change this with 2
+    parser.add_argument('--group-size', type=int, default=2) # TODO change this with 2
     parser.add_argument('--wait-time', type=int, default=10)
     args = parser.parse_args()
     return args
@@ -655,7 +655,7 @@ class MainWindow(QMainWindow):
         print(f"setting {widget_name} = {value}")
     def load_photos(self):
         self.photo_paths = []
-
+        self.photo_directory = f"/home/inovako/Desktop/Inovako/Inovako/Tofas/tofas_app/output/run_{len(os.listdir(args.out_dir))}/Basler a2A2600-64umBAS (40359004)/{args.exposure_time}/DET/"
         if not os.path.exists(self.photo_directory):
             os.makedirs(self.photo_directory)
 
@@ -665,6 +665,7 @@ class MainWindow(QMainWindow):
                 self.photo_paths.append(file_path)
 
     def change_photo(self):
+        self.load_photos()
         if len(self.photo_paths) == 0:
             return  # Hiç fotoğraf yoksa işlemi iptal et
 

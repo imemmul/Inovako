@@ -30,7 +30,6 @@ from threading import Barrier
 # TODO is more sync possible ?
 # TODO how to communicate each frame(image) with other cams, the main problem is all cameras in different thread and we'able to get them in inference process (e: run_inference)
 
-
 # The following class represents an array of Basler cameras and is used to initialize, configure and manage the cameras.
 class BaslerCameraArray():
     # The constructor method initializes the BaslerCameraArray object with a given number of cameras and a master camera id.
@@ -100,6 +99,7 @@ def run_inference(q:Queue, group_id, args, running, devices):
         print(f"running inference group: {group_id}")
         update_status(2) # ready to take action
         while True:
+            start_time = time.time()
             try:
                 # print(f"QUEUE SIZE OF cam:{cam_id}: {q.qsize()}")
                 image, cam_id, exp_time, capture_id, capture_time = q.get()
@@ -133,25 +133,37 @@ def run_inference(q:Queue, group_id, args, running, devices):
                     seg_img = (seg_img * inv_alph_masks[-1] + mcs) * 255
                     draw = cv2.resize(seg_img.cpu().numpy().astype(np.uint8),
                                     draw.shape[:2][::-1])
-
+                    draw_copy = draw.copy()
                     bboxes -= dwdh
                     bboxes /= ratio
-
+                    # NOTE cracklerin bilgisini asagidaki yerden alabilirsiniz, cls Crack ve Hole olarak ikiye ayrilmis burdan ayrim yapip istediginiz yere cekebilirsiniz.
                     for (bbox, score, label) in zip(bboxes, scores, labels):
                         bbox = bbox.round().int().tolist()
                         cls_id = int(label)
-                        cls = CLASSES[cls_id]
+                        cls = CLASSES[cls_id] # Crack, Hole
+                        # TODO anlatim amaclidir
                         color = COLORS[cls]
+                        if cls_id == 0:
+                            print(f"crack found")
+                            try:
+                                with open("./crack_output.txt", 'a') as f:
+                                    f.write(f"{cam_id} {capture_id}\n")
+                            except Exception as e:
+                                print(f"some error in saving crack: {e}")
+                        else:
+                            # just for hole:
+                            pass 
                         cv2.rectangle(draw, bbox[:2], bbox[2:], color, 2)
                         cv2.putText(draw,
                                     f'{cls}:{score:.3f}', (bbox[0], bbox[1] - 2),
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    2, [225, 255, 255],
-                                    thickness=5)
+                                    3, [225, 255, 255],
+                                    thickness=3)
                     # print(f"image saved")
                     #print(f"trying to save det here: {args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg")
                     cv2.imwrite(filename=f"{args.out_dir}run_{run_id}/{devices[cam_id]}/{exp_time}/DET/output_{capture_id}.jpg", img=draw)
-                # print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
+                end_time = time.time()
+                print(f"Its been {end_time-start_time} seconds to process cam: {cam_id}")
                 if not running.is_set() and q.qsize() == 0:
                     update_status(1)
                     break
